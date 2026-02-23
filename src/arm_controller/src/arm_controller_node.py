@@ -96,11 +96,31 @@ class ArmControllerNode(Node):
         self.SCREENSAVER_WIDTH = 15.0
         self.SCREENSAVER_HEIGHT = 10.0
         self.SCREENSAVER_PAUSE_SEC = 1.0
+
+        ## --------------------------------------------------------------------------
+        ## Servo Limits (ROS 2 Parameters)
+        ## --------------------------------------------------------------------------
+        # Declare parameters with default 0.0 to 100.0 boundaries
+        self.declare_parameter('servo_min_limits', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self.declare_parameter('servo_max_limits', [100.0, 100.0, 100.0, 100.0, 100.0, 100.0])
+
+        # Fetch limits provided by the launch script
+        self.SERVO_MIN = self.get_parameter('servo_min_limits').value
+        self.SERVO_MAX = self.get_parameter('servo_max_limits').value
+        
+        # Calculate a safe "Center" position that respects the new limits
+        self.CENTER_POSITIONS = [
+            max(self.SERVO_MIN[i], min(self.SERVO_MAX[i], 50.0)) for i in range(self.NUM_SERVOS)
+        ]
+        self.get_logger().info(f"Loaded MIN limits: {self.SERVO_MIN}")
+        self.get_logger().info(f"Loaded MAX limits: {self.SERVO_MAX}")
+
         ## --------------------------------------------------------------------------
         ## State Storage
         ## --------------------------------------------------------------------------
-        self.target_positions = [50.0] * self.NUM_SERVOS
-        self.current_positions = [50.0] * self.NUM_SERVOS
+        self.target_positions = list(self.CENTER_POSITIONS)
+        self.current_positions = list(self.CENTER_POSITIONS)
+
         # Gamepad-specific states
         self.home_button_was_pressed = False
         self.screensaver_active = False
@@ -149,9 +169,11 @@ class ArmControllerNode(Node):
         if has_timed_out and not self.screensaver_active and not self.servos_are_released:
             self.get_logger().info("Inactivity detected. Releasing servos.")
             self.release_all_servos()
-        # Apply smoothing and send final commands to servos
+        #  Apply smoothing and send final commands to servos
         for i in range(self.NUM_SERVOS):
-            self.target_positions[i] = max(0.0, min(100.0, self.target_positions[i]))
+            # Enforce dynamic boundaries here instead of hardcoded 0.0/100.0
+            self.target_positions[i] = max(self.SERVO_MIN[i], min(self.SERVO_MAX[i], self.target_positions[i]))
+            
             error = self.target_positions[i] - self.current_positions[i]
             self.current_positions[i] += error * self.SMOOTHING_FACTOR
             
@@ -181,11 +203,11 @@ class ArmControllerNode(Node):
         
         # Home button ('Y') is a master override
         if msg.buttons[3] == 1 and not self.home_button_was_pressed:
-            self.get_logger().info("Home button pressed. Setting target to center.")
+            self.get_logger().info("Home button pressed. Setting target to safe center.")
             if self.screensaver_active:
                 self.screensaver_active = False
                 self.get_logger().info("Screensaver cancelled by home button.")
-            self.target_positions = [50.0] * self.NUM_SERVOS
+            self.target_positions = list(self.CENTER_POSITIONS)
         self.home_button_was_pressed = (msg.buttons[3] == 1)
         # Screensaver cancel logic
         is_joystick_moved = any(axes)
@@ -194,8 +216,8 @@ class ArmControllerNode(Node):
         if self.screensaver_active and (is_joystick_moved or is_action_button_pressed):
             self.screensaver_active = False
             self.get_logger().info("Screensaver deactivated by user input.")
-        # Screensaver toggle logic ('X' button, index 2)
-        if msg.buttons[2] == 1 and not self.screensaver_button_was_pressed:
+        # Screensaver toggle logic ('START' button, index 9)
+        if msg.buttons[9] == 1 and not self.screensaver_button_was_pressed:
             self.screensaver_active = not self.screensaver_active
             if self.screensaver_active:
                 self.get_logger().info("Drawing screensaver activated.")
@@ -203,7 +225,7 @@ class ArmControllerNode(Node):
                 self.screensaver_is_paused = False
             else:
                 self.get_logger().info("Screensaver deactivated.")
-        self.screensaver_button_was_pressed = (msg.buttons[2] == 1)
+        self.screensaver_button_was_pressed = (msg.buttons[9] == 1)
         # Execute the correct logic
         if self.screensaver_active:
             # --- Screensaver Motion Logic with Pause ---
@@ -235,8 +257,8 @@ class ArmControllerNode(Node):
             self.target_positions[0] += axes[0] * -1 * self.SERVO_SPEEDS[0]  # Base (Left Stick L/R)
             self.target_positions[1] += axes[1] * self.SERVO_SPEEDS[1]       # Shoulder (Left Stick U/D)
             self.target_positions[2] += axes[3] * self.SERVO_SPEEDS[2]       # Elbow (Right Stick U/D)
-            self.target_positions[3] += axes[2] * -1 * self.SERVO_SPEEDS[3]  # Servo 3 (Pitch) controlled by Right Stick L/R (axes[2])
-            self.target_positions[4] += axes[4] * self.SERVO_SPEEDS[4]       # Servo 4 (Roll) controlled by D-Pad L/R (axes[4])       
+            self.target_positions[3] += axes[4] * self.SERVO_SPEEDS[3]       # Servo 3 now on Left Side (D-Pad L/R)
+            self.target_positions[4] += axes[2] * -1 * self.SERVO_SPEEDS[4]  # Servo 4 now on Right Stick L/R      
      
             # Gripper Logic: Shoulders (4/5) OR Stick Clicks (10/11)
             if msg.buttons[4] == 1 or msg.buttons[10] == 1: 
@@ -270,12 +292,12 @@ class ArmControllerNode(Node):
 
     def center_all_servos(self):
         """
-        @brief Instantly centers all servos and resets their state variables.
+        @brief Instantly centers all servos, respecting the safe limits.
         """
-        self.target_positions = [50.0] * self.NUM_SERVOS
-        self.current_positions = [50.0] * self.NUM_SERVOS
+        self.target_positions = list(self.CENTER_POSITIONS)
+        self.current_positions = list(self.CENTER_POSITIONS)
         for i in range(self.NUM_SERVOS):
-            self.setPercent(i, 50)
+            self.setPercent(i, self.CENTER_POSITIONS[i])
             
     def release_all_servos(self):
         """
@@ -301,7 +323,7 @@ def main(args=None):
         arm_controller_node.get_logger().info("Shutting down...")
         # Center the arm before exiting.
         for i in range(arm_controller_node.NUM_SERVOS):
-            arm_controller_node.setPercent(i, 50)
+            arm_controller_node.setPercent(i, arm_controller_node.CENTER_POSITIONS[i])
         arm_controller_node.get_logger().info("Arm centered.")
         time.sleep(1)
         arm_controller_node.release_all_servos()

@@ -147,11 +147,20 @@ The script will launch both the `joy_teleop_node` and the `arm_controller_node.p
 ***
  
 ## Configuration & Tuning
- 
-All high-level control logic and tunable parameters are located at the top of the **`arm_controller_node.py`** script. You can easily modify the following:
-* `SERVO_SPEEDS`: Adjust the sensitivity of each servo's movement.
-* `SMOOTHING_FACTOR`: Change how "cushioned" or "responsive" the arm feels.
-* `GRIPPER_CLOSED_PERCENT` / `GRIPPER_OPEN_PERCENT`: Set the safe open/close limits for your gripper to prevent stalling.
+
+### Setting Safe Workspace Limits (`start_robot.sh`)
+To prevent the robot arm from colliding with obstacles or damaging its own servos, you can configure software limits directly in the `start_robot.sh` launch script. You do not need to recompile the code to change these boundaries.
+
+Locate the `SERVO_MIN_LIMITS` and `SERVO_MAX_LIMITS` arrays in the script. The arrays map to the 6 servos in this exact order: `[Base, Shoulder, Elbow, Pitch, Roll, Gripper]`.
+
+* **Values:** Each value represents a percentage of physical rotation from **0.0** to **100.0**, where 50.0 is dead center. 
+* **How it works:** If you set a minimum limit of 25.0 and a maximum of 75.0, the Python node will mathematically clamp the servo so it cannot move outside of that 50% window, no matter how hard you push the joystick.
+* **Safe Centering:** When you press the "Home" button on the gamepad, the script will automatically calculate a safe center pose that falls within your defined limits so the arm never breaks its boundaries.
+
+### Controller Tuning (`arm_controller_node.py`)
+Additional high-level control logic and tunable parameters are located at the top of the **`arm_controller_node.py`** script. You can tweak the following to change how the arm feels:
+* `SERVO_SPEEDS`: Adjust the sensitivity and maximum velocity of each servo's movement.
+* `SMOOTHING_FACTOR`: Change how "cushioned" or "snappy" the arm feels when starting or stopping a movement.
 * `DRAWING_POSE`: Manually tune the multi-servo pose the arm moves to before starting the screensaver.
 * `SCREENSAVER_SPEED`, `SWEEP_WIDTH`: Change the speed and size of the screensaver motion.
  
