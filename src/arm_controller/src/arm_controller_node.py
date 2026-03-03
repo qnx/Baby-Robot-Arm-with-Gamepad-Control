@@ -33,7 +33,7 @@ Key Features:
 - Deadzone and MIN/MAX: Includes configurable deadzone and gripper open/close
   percentages to prevent servo drift and stalling.
 - Inactivity timer to release servos, and state management for
-  Homing and Screensaver modes
+  Homing and Dance modes (cycle through dances with the BACK button)
 """
 
 import rclpy
@@ -42,7 +42,95 @@ from sensor_msgs.msg import Joy
 from PCA9685 import PCA9685
 import time
 import math
- 
+
+## --------------------------------------------------------------------------
+## Dance Registry
+## Each dance is a pure function: (t, pose, width, height, shoulder_comp,
+## wrist_comp) -> list[float]  (a full 6-element target_positions array).
+##
+## To add a new dance:
+##   1. Define a module-level function following the signature below.
+##   2. Append {"name": "...", "fn": your_function} to DANCE_REGISTRY.
+## That's it — no changes to the control loop are needed.
+## --------------------------------------------------------------------------
+
+def _dance_figure_eight(t, pose, width, height, shoulder_comp, wrist_comp):
+    """Classic figure-eight: base sweeps left/right while elbow traces a
+    vertical lemniscate (sin 2t gives two lobes per cycle)."""
+    positions = list(pose)
+    offset_x = width  * math.cos(t)
+    offset_z = height * math.sin(2 * t)
+    positions[0] = pose[0] + offset_x
+    positions[1] = pose[1] - (offset_z * shoulder_comp)
+    positions[2] = pose[2] + offset_z
+    positions[3] = pose[3] - (offset_z * wrist_comp)
+    positions[4] = pose[4]
+    positions[5] = pose[5]
+    return positions
+
+
+def _dance_wave(t, pose, width, height, shoulder_comp, wrist_comp):
+    """Graceful bowing arc — like waving hello. The shoulder dips forward and
+    back while the elbow lags by 45 degrees for a whip-like quality. The wrist
+    pitch opens as the arm bows to reach out, and the base adds a gentle
+    pendulum sweep."""
+    positions = list(pose)
+    shoulder_swing = height       * math.sin(t)
+    elbow_bend     = height * 0.8 * math.sin(t + math.pi / 4)
+    wrist_open     = height * 1.2 * math.sin(t)
+    base_swing     = width  * 0.5 * math.sin(t)
+    positions[0] = pose[0] + base_swing
+    positions[1] = pose[1] + shoulder_swing
+    positions[2] = pose[2] - elbow_bend
+    positions[3] = pose[3] + wrist_open
+    positions[4] = pose[4]
+    positions[5] = pose[5]
+    return positions
+
+
+def _dance_cobra(t, pose, width, height, shoulder_comp, wrist_comp):
+    """Hypnotic rise and sway — like a cobra rearing up. The arm rises and
+    drops once per cycle while the base sways side-to-side at half frequency,
+    so two rear-and-drop cycles complete for every one left-right sway. The
+    wrist auto-levels throughout to keep the end effector flat."""
+    positions = list(pose)
+    rise = height * math.sin(t)
+    sway = width  * math.sin(t / 2)
+    positions[0] = pose[0] + sway
+    positions[1] = pose[1] - rise * 1.2
+    positions[2] = pose[2] - rise
+    positions[3] = pose[3] + (rise * wrist_comp) + (rise * shoulder_comp * 1.2)
+    positions[4] = pose[4]
+    positions[5] = pose[5]
+    return positions
+
+
+def _dance_conductor(t, pose, width, height, shoulder_comp, wrist_comp):
+    """Orchestra conductor's baton. The elbow beats at 2x frequency (downbeat
+    on every half-cycle), the base sweeps laterally 90 degrees out of phase
+    with the melodic arc, and the wrist roll tilts 45 degrees ahead of the
+    beat for an expressive wrist-flick effect."""
+    positions = list(pose)
+    beat      = height       * math.sin(2 * t)
+    arc       = height * 0.6 * math.sin(t - math.pi / 2)
+    sweep     = width        * math.cos(t)
+    roll_tilt = height * 0.4 * math.sin(2 * t + math.pi / 4)
+    positions[0] = pose[0] + sweep
+    positions[1] = pose[1] + arc
+    positions[2] = pose[2] + beat
+    positions[3] = pose[3] - (beat * wrist_comp)
+    positions[4] = pose[4] + roll_tilt
+    positions[5] = pose[5]
+    return positions
+
+
+DANCE_REGISTRY = [
+    {"name": "Figure Eight", "fn": _dance_figure_eight},
+    {"name": "Wave",         "fn": _dance_wave},
+    {"name": "Cobra",        "fn": _dance_cobra},
+    {"name": "Conductor",    "fn": _dance_conductor},
+]
+
 class ArmControllerNode(Node):
     """
     Manages arm hardware, joystick input, and controls all arm states.
@@ -76,7 +164,7 @@ class ArmControllerNode(Node):
         self.SERVO_RELEASE_TIMEOUT_SEC = 5.0 # Seconds of inactivity before servos relax
 
         ## --------------------------------------------------------------------------
-        ## Drawing Pose & Screensaver Parameters
+        ## Drawing Pose & Dance Parameters
         ## --------------------------------------------------------------------------
         ELBOW_DOWNWARD_BEND = 85.0
         SHOULDER_FORWARD_REACH = 40.0
@@ -91,11 +179,11 @@ class ArmControllerNode(Node):
             50.0,                               # Servo 4: Wrist Roll (Keep centered)
             50.0                                # Servo 5: Gripper
         ]
-        
-        self.SCREENSAVER_SPEED = 0.05
-        self.SCREENSAVER_WIDTH = 15.0
-        self.SCREENSAVER_HEIGHT = 10.0
-        self.SCREENSAVER_PAUSE_SEC = 1.0
+
+        self.DANCE_SPEED = 0.05
+        self.DANCE_WIDTH = 15.0
+        self.DANCE_HEIGHT = 10.0
+        self.DANCE_PAUSE_SEC = 1.0
 
         ## --------------------------------------------------------------------------
         ## Servo Limits (ROS 2 Parameters)
@@ -123,11 +211,13 @@ class ArmControllerNode(Node):
 
         # Gamepad-specific states
         self.home_button_was_pressed = False
-        self.screensaver_active = False
-        self.screensaver_time = 0.0
-        self.screensaver_button_was_pressed = False
-        self.screensaver_is_paused = False
+        self.dance_active = False
+        self.dance_time = 0.0
+        self.start_button_was_pressed = False
+        self.dance_is_paused = False
         self.pause_start_time = 0.0
+        self.current_dance_index = 0
+        self.next_dance_button_was_pressed = False
         
         # Inactivity Timer State
         self.last_input_time = time.time()
@@ -164,9 +254,9 @@ class ArmControllerNode(Node):
         what controller set them.
         """
         
-        # Check for inactivity timeout (only if screensaver is off)
+        # Check for inactivity timeout (only if dance mode is off)
         has_timed_out = (time.time() - self.last_input_time) > self.SERVO_RELEASE_TIMEOUT_SEC
-        if has_timed_out and not self.screensaver_active and not self.servos_are_released:
+        if has_timed_out and not self.dance_active and not self.servos_are_released:
             self.get_logger().info("Inactivity detected. Releasing servos.")
             self.release_all_servos()
         #  Apply smoothing and send final commands to servos
@@ -204,54 +294,63 @@ class ArmControllerNode(Node):
         # Home button ('Y') is a master override
         if msg.buttons[3] == 1 and not self.home_button_was_pressed:
             self.get_logger().info("Home button pressed. Setting target to safe center.")
-            if self.screensaver_active:
-                self.screensaver_active = False
-                self.get_logger().info("Screensaver cancelled by home button.")
+            if self.dance_active:
+                self.dance_active = False
+                self.get_logger().info("Dance cancelled by home button.")
             self.target_positions = list(self.CENTER_POSITIONS)
         self.home_button_was_pressed = (msg.buttons[3] == 1)
-        # Screensaver cancel logic
+        # Dance mode cancel logic
         is_joystick_moved = any(axes)
         # Check for shoulder buttons (4,5) OR stick clicks (10,11)
         is_action_button_pressed = any(msg.buttons[i] == 1 for i in [4, 5, 10, 11])
-        if self.screensaver_active and (is_joystick_moved or is_action_button_pressed):
-            self.screensaver_active = False
-            self.get_logger().info("Screensaver deactivated by user input.")
-        # Screensaver toggle logic ('START' button, index 9)
-        if msg.buttons[9] == 1 and not self.screensaver_button_was_pressed:
-            self.screensaver_active = not self.screensaver_active
-            if self.screensaver_active:
-                self.get_logger().info("Drawing screensaver activated.")
-                self.screensaver_time = 0.0
-                self.screensaver_is_paused = False
+        if self.dance_active and (is_joystick_moved or is_action_button_pressed):
+            self.dance_active = False
+            self.get_logger().info("Dance deactivated by user input.")
+        # Dance toggle logic ('START' button, index 9)
+        if msg.buttons[9] == 1 and not self.start_button_was_pressed:
+            self.dance_active = not self.dance_active
+            if self.dance_active:
+                dance_name = DANCE_REGISTRY[self.current_dance_index]["name"]
+                self.get_logger().info(f"Dance mode activated: '{dance_name}'.")
+                self.dance_time = 0.0
+                self.dance_is_paused = False
             else:
-                self.get_logger().info("Screensaver deactivated.")
-        self.screensaver_button_was_pressed = (msg.buttons[9] == 1)
+                self.get_logger().info("Dance mode deactivated.")
+        self.start_button_was_pressed = (msg.buttons[9] == 1)
+        # Next dance button ('BACK', index 6) — cycles through DANCE_REGISTRY
+        if msg.buttons[6] == 1 and not self.next_dance_button_was_pressed:
+            self.current_dance_index = (self.current_dance_index + 1) % len(DANCE_REGISTRY)
+            dance_name = DANCE_REGISTRY[self.current_dance_index]["name"]
+            self.get_logger().info(
+                f"Dance selected: '{dance_name}' ({self.current_dance_index + 1}/{len(DANCE_REGISTRY)})."
+            )
+            if self.dance_active:
+                self.dance_time = 0.0
+                self.dance_is_paused = False
+        self.next_dance_button_was_pressed = (msg.buttons[6] == 1)
         # Execute the correct logic
-        if self.screensaver_active:
-            # --- Screensaver Motion Logic with Pause ---
-            if self.screensaver_is_paused:
-                if (time.time() - self.pause_start_time) >= self.SCREENSAVER_PAUSE_SEC:
-                    self.screensaver_is_paused = False
-                    self.screensaver_time = 0.0
+        if self.dance_active:
+            # --- Dance Motion Logic with Pause ---
+            if self.dance_is_paused:
+                if (time.time() - self.pause_start_time) >= self.DANCE_PAUSE_SEC:
+                    self.dance_is_paused = False
+                    self.dance_time = 0.0
             else:
-                self.screensaver_time += self.SCREENSAVER_SPEED
-                if self.screensaver_time >= (2 * math.pi):
-                    self.screensaver_is_paused = True
+                self.dance_time += self.DANCE_SPEED
+                if self.dance_time >= (2 * math.pi):
+                    self.dance_is_paused = True
                     self.pause_start_time = time.time()
                 else:
-                    base_pose = self.DRAWING_POSE
-                    offset_x = self.SCREENSAVER_WIDTH * math.cos(self.screensaver_time)
-                    offset_z = self.SCREENSAVER_HEIGHT * math.sin(2 * self.screensaver_time)
-                    self.target_positions[0] = base_pose[0] + offset_x
-                    self.target_positions[2] = base_pose[2] + offset_z
-                    
-                    # UPDATED FOR NEW MAPPING: 3 is Pitch, 4 is Roll
-                    self.target_positions[3] = base_pose[3] - (offset_z * self.WRIST_COMPENSATION) # Pitch
-                    self.target_positions[4] = base_pose[4] # Roll
-                    
-                    self.target_positions[1] = base_pose[1] - (offset_z * self.SHOULDER_COMPENSATION)
-                    self.target_positions[5] = self.DRAWING_POSE[5]
-            
+                    dance_fn = DANCE_REGISTRY[self.current_dance_index]["fn"]
+                    self.target_positions = dance_fn(
+                        self.dance_time,
+                        self.DRAWING_POSE,
+                        self.DANCE_WIDTH,
+                        self.DANCE_HEIGHT,
+                        self.SHOULDER_COMPENSATION,
+                        self.WRIST_COMPENSATION
+                    )
+
         elif not self.servos_are_released:
             # --- Normal Joystick Control Logic ---
             self.target_positions[0] += axes[0] * -1 * self.SERVO_SPEEDS[0]  # Base (Left Stick L/R)
