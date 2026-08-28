@@ -117,6 +117,9 @@ IKSolverNode::IKSolverNode() : Node("ik_solver_node") {
   cartesian_subscription_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
       "/CartesianCmd", 10, std::bind(&IKSolverNode::cartesian_callback, this, std::placeholders::_1));
 
+  target_positions_subscription_ = this->create_subscription<geometry_msgs::msg::Point>(
+      "/TargetPositions", 10, std::bind(&IKSolverNode::target_positions_callback, this, std::placeholders::_1));
+
   pos_subscription_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
       "/CurrentPositions", 10, std::bind(&IKSolverNode::current_positions_callback, this, std::placeholders::_1));
 }
@@ -360,6 +363,39 @@ void IKSolverNode::cartesian_callback(const std_msgs::msg::Float64MultiArray::Sh
   }
 
   // Success — update joint positions and publish
+  current_joint_positions_ = solution;
+  publish_joint_command(solution);
+}
+
+void IKSolverNode::target_positions_callback(const geometry_msgs::msg::Point::SharedPtr msg) {
+  if (!target_initialized_) {
+    return;
+  }
+
+  // Save the previous target so a failed solve does not corrupt the state
+  // used by subsequent absolute or velocity commands.
+  KDL::Vector previous_target = cartesian_target_.p;
+
+  // TargetPositions contains absolute coordinates in the configured base
+  // frame, unlike CartesianCmd which contains velocities to integrate.
+  cartesian_target_.p.x(msg->x);
+  cartesian_target_.p.y(msg->y);
+  cartesian_target_.p.z(msg->z);
+
+  clamp_cartesian_target(cartesian_target_);
+
+  KDL::JntArray solution(num_joints_);
+  int result = ik_pos_solver_->CartToJnt(current_joint_positions_, cartesian_target_, solution);
+
+  if (result < 0) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                         "Absolute position IK failed (result=%d). "
+                         "Target may be out of reach: [%.3f, %.3f, %.3f]",
+                         result, cartesian_target_.p.x(), cartesian_target_.p.y(), cartesian_target_.p.z());
+    cartesian_target_.p = previous_target;
+    return;
+  }
+
   current_joint_positions_ = solution;
   publish_joint_command(solution);
 }
