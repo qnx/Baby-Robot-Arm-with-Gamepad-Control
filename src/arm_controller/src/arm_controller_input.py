@@ -333,7 +333,7 @@ class ArmControllerJointInput(ArmControllerInput):
             self.controller.set_joint_rad(self.joint_map[msg.name[joint_idx]], msg.position[joint_idx])
 
 
-class ArmControllerInverseKinematicInput(ArmControllerInput):
+class ArmControllerIKJoystickInput(ArmControllerInput):
     """
     @brief Controls robot with joystick using IK controls rather than per joint controls.
     Each joint is mapped to a servo on the robot arm with the exception of the gripper which
@@ -395,7 +395,7 @@ class ArmControllerInverseKinematicInput(ArmControllerInput):
                 float(msg.buttons[GamepadButton.Y.value]) # data[3]: home button
             ]
             self.cartesian_pub.publish(cmd)
-        
+
         if msg.buttons[GamepadButton.Y.value] == 1:
             self.get_logger().info("Home button pressed. Setting target to safe center.")
             self.center_ortn_servos()
@@ -427,3 +427,49 @@ class ArmControllerInverseKinematicInput(ArmControllerInput):
         self.controller.set_joint_rad(JointNum.BASE, msg.position[0])
         self.controller.set_joint_rad(JointNum.SHOULDER, msg.position[1])
         self.controller.set_joint_rad(JointNum.ELBOW, msg.position[2])
+
+class ArmControllerIKJointInput(ArmControllerIKJoystickInput):
+    """
+    @brief Controls robot with joystick using IK controls rather than per joint controls.
+    This is the same as @ArmControllerInverseKinematicInput but uses external controls
+    which talk directly with the IK mode for the first 3 joints instead of the joystick.
+    The next 3 joint are controlled through joint messages.
+    """
+
+    # Only the last 3 can be controlled with joint_map
+    joint_map = {
+        "wrist": JointNum.WRIST,
+        "hand": JointNum.HAND,
+        "gripper": JointNum.GRIPPER,
+    }
+
+    def __init__(self, controller: ArmController, logger: RcutilsLogger, cartesian_pub, curr_pos_pub):
+        super().__init__(controller, logger, cartesian_pub, curr_pos_pub)
+
+    def joint_callback(self, msg: JointState):
+        """
+        Controls the top 3 joints based on joint callbacks from an External
+        """
+        joint_count = len(msg.name)
+        for joint_idx in range(joint_count):
+            if msg.name[joint_idx] not in self.joint_map:
+                self.get_logger().warn(f"Invalid joint {msg.name[joint_idx]} in joint message")
+                continue
+            self.controller.set_joint_rad(self.joint_map[msg.name[joint_idx]], msg.position[joint_idx])
+
+
+    def joy_callback(self, msg: Joy):
+        """
+        The joy callback for robot isn't used for ExternalIKMode.
+        We do haver want to support centering in cases that the robot gets in a odd position
+        """
+
+        if msg.buttons[GamepadButton.Y.value] == 1:
+            self.get_logger().info("Home button pressed. Setting target to safe center.")
+            cmd = Float64MultiArray()
+
+            # Request that the robot center itself
+            cmd.data = [0, 0, 0, 1]
+            self.cartesian_pub.publish(cmd)
+            self.center_ortn_servos()
+            return

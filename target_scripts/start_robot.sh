@@ -58,6 +58,9 @@ SERVO_MAX_LIMITS="[75.0, 50.0, 100.0, 100.0, 100.0, 65.0]"
 CART_MIN_LIMITS="[-0.16,  0.10, -0.145]"
 CART_MAX_LIMITS="[ 0.16,  0.21, -0.014]"
 
+# Default mode [joystick, joint, ik_joystick, ik_joint]
+ROBOT_MODE="joint"
+
 # --- Starting the ROS2 Nodes ---
 echo "Starting Joy Teleop, IK Solver, and Arm Controller nodes..."
 
@@ -73,6 +76,7 @@ ros2 run ik_solver ik_solver_node \
 # Run the Python arm controller node in the background with the limits.
 ros2 run arm_controller arm_controller_node.py \
     --ros-args \
+    -p mode:="${ROBOT_MODE}" \
     -p servo_min_limits:="${SERVO_MIN_LIMITS}" \
     -p servo_max_limits:="${SERVO_MAX_LIMITS}" &
 
