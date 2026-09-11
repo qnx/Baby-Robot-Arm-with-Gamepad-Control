@@ -158,7 +158,7 @@ class ArmControllerNode(Node):
         self.input_screensaver = ArmControllerScreensaverInput(self.controller, self.get_logger())
         self.input_joint = ArmControllerJointInput(self.controller, self.get_logger())
         self.input_ik_joy = ArmControllerIKJoystickInput(self.controller, self.get_logger(), self.cartesian_pub, self.curr_pos_pub)
-        self.input_ik_joint = ArmControllerIKJointInput(self.controller, self.get_logger(), self.curr_pos_pub)
+        self.input_ik_joint = ArmControllerIKJointInput(self.controller, self.get_logger(), self.cartesian_pub, self.curr_pos_pub)
         self.active_input = self.input_joystick # By default the joystick input will be used
 
         # The default mode is the joystick controls. Force the update to publish the state at least one at start

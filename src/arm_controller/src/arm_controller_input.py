@@ -443,10 +443,8 @@ class ArmControllerIKJointInput(ArmControllerIKJoystickInput):
         "gripper": JointNum.GRIPPER,
     }
 
-    def __init__(self, controller: ArmController, logger: RcutilsLogger, curr_pos_pub):
-        # cartesian_pub isn't used
-        super().__init__(controller, logger, None, curr_pos_pub)
-
+    def __init__(self, controller: ArmController, logger: RcutilsLogger, cartesian_pub, curr_pos_pub):
+        super().__init__(controller, logger, cartesian_pub, curr_pos_pub)
 
     def joint_callback(self, msg: JointState):
         """
@@ -462,5 +460,16 @@ class ArmControllerIKJointInput(ArmControllerIKJoystickInput):
 
     def joy_callback(self, msg: Joy):
         """
-        The joy callback isn't used for ExternalIKMode
+        The joy callback for robot isn't used for ExternalIKMode.
+        We do haver want to support centering in cases that the robot gets in a odd position
         """
+
+        if msg.buttons[GamepadButton.Y.value] == 1:
+            self.get_logger().info("Home button pressed. Setting target to safe center.")
+            cmd = Float64MultiArray()
+
+            # Request that the robot center itself
+            cmd.data = [0, 0, 0, 1]
+            self.cartesian_pub.publish(cmd)
+            self.center_ortn_servos()
+            return
