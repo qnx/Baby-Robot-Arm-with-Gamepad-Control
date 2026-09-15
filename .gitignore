@@ -2,3 +2,5 @@ build/
 install/
 log/
 transfer.sh
+__pycache__/
+*.py[cod]

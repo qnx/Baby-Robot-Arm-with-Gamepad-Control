@@ -1,0 +1,1339 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Baby Robot Arm — Security Remediation Guide</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-alt: #eef3f8;
+      --text: #172033;
+      --muted: #536176;
+      --border: #d8e0ea;
+      --link: #0759b5;
+      --high: #a9232f;
+      --high-bg: #fff0f1;
+      --medium: #8a5200;
+      --medium-bg: #fff6e5;
+      --low: #17633a;
+      --low-bg: #eaf8ef;
+      --code-bg: #101826;
+      --code-text: #e8edf5;
+      --focus: #2767d7;
+      --shadow: 0 8px 24px rgba(29, 43, 70, .08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1420;
+        --surface: #151e2c;
+        --surface-alt: #1b2636;
+        --text: #edf2f8;
+        --muted: #b2bfd0;
+        --border: #334155;
+        --link: #8ec5ff;
+        --high: #ff9da7;
+        --high-bg: #3b1d24;
+        --medium: #ffd081;
+        --medium-bg: #382b16;
+        --low: #8de0aa;
+        --low-bg: #173323;
+        --code-bg: #080d15;
+        --code-text: #edf3fb;
+        --focus: #9ac7ff;
+        --shadow: none;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.58 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--link); text-underline-offset: .18em; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible, button:focus-visible, input:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 72px;
+    }
+    .hero {
+      padding: clamp(24px, 4vw, 48px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: .82rem;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, h4 { line-height: 1.2; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.7rem); letter-spacing: -.035em; }
+    h2 { margin: 52px 0 18px; font-size: clamp(1.55rem, 3vw, 2.15rem); }
+    h3 { margin: 0; font-size: 1.24rem; }
+    h4 { margin: 24px 0 8px; font-size: 1rem; }
+    p { margin: 9px 0; }
+    .lede { max-width: 78ch; margin: 18px 0 0; color: var(--muted); font-size: 1.08rem; }
+    .meta { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); }
+    .meta code { overflow-wrap: anywhere; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 26px;
+    }
+    .stat {
+      min-height: 96px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--surface-alt);
+    }
+    .stat strong { display: block; font-size: 1.9rem; line-height: 1; }
+    .stat span { display: block; margin-top: 8px; color: var(--muted); }
+    .stat.high strong { color: var(--high); }
+    .stat.medium strong { color: var(--medium); }
+    .stat.low strong { color: var(--low); }
+    .notice {
+      margin: 24px 0 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--medium);
+      background: var(--medium-bg);
+    }
+    .controls {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin: 26px 0;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      backdrop-filter: blur(12px);
+    }
+    .controls label { font-weight: 700; }
+    .controls input {
+      flex: 1 1 260px;
+      min-width: 180px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+    .controls button {
+      min-height: 42px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .controls button[aria-pressed="true"] {
+      border-color: var(--focus);
+      background: var(--surface-alt);
+    }
+    .result-count { color: var(--muted); }
+    .toc {
+      columns: 2 360px;
+      gap: 28px;
+      margin: 0;
+      padding-left: 22px;
+    }
+    .toc li { break-inside: avoid; margin: 0 0 8px; }
+    .diagram-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .diagram {
+      overflow-x: auto;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #ffffff;
+      color: #172033;
+    }
+    .diagram h3 { margin-bottom: 12px; }
+    .diagram p { color: #536176; }
+    .mermaid { min-width: 460px; }
+    .severity-section > h2 {
+      padding-bottom: 10px;
+      border-bottom: 3px solid var(--border);
+    }
+    .finding {
+      margin: 18px 0;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-left-width: 6px;
+      border-radius: 14px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      scroll-margin-top: 86px;
+    }
+    .finding.high { border-left-color: var(--high); }
+    .finding.medium { border-left-color: var(--medium); }
+    .finding.low { border-left-color: var(--low); }
+    .finding[hidden] { display: none; }
+    .finding-head {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .badge {
+      flex: 0 0 auto;
+      display: inline-block;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .high .badge { color: var(--high); background: var(--high-bg); }
+    .medium .badge { color: var(--medium); background: var(--medium-bg); }
+    .low .badge { color: var(--low); background: var(--low-bg); }
+    .issue { color: var(--muted); }
+    .sources {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin: 12px 0;
+    }
+    .sources a { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .89rem; }
+    pre {
+      overflow-x: auto;
+      margin: 10px 0 18px;
+      padding: 16px;
+      border-radius: 10px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      font: .88rem/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      tab-size: 4;
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    :not(pre) > code {
+      padding: .12em .32em;
+      border-radius: 4px;
+      background: var(--surface-alt);
+    }
+    .why {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--low);
+      background: var(--low-bg);
+    }
+    .remediation ul, .priority-list { padding-left: 22px; }
+    .remediation li, .priority-list li { margin: 7px 0; }
+    .closing {
+      margin-top: 48px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+    }
+    .small { color: var(--muted); font-size: .92rem; }
+    .back { display: inline-block; margin-top: 14px; }
+    @media (max-width: 760px) {
+      .page { width: min(100% - 20px, 1180px); padding-top: 10px; }
+      .hero, .finding { padding: 20px; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .diagram-grid { grid-template-columns: 1fr; }
+      .finding-head { display: block; }
+      .badge { margin-top: 10px; }
+      .controls { top: 0; }
+    }
+    @media print {
+      :root {
+        --bg: #fff; --surface: #fff; --surface-alt: #f4f6f8; --text: #111;
+        --muted: #444; --border: #bbb; --link: #0645ad; --shadow: none;
+      }
+      .page { width: 100%; padding: 0; }
+      .controls { display: none; }
+      .hero, .finding, .closing { box-shadow: none; break-inside: avoid; }
+      .diagram-grid { display: block; }
+      .diagram { margin: 14px 0; break-inside: avoid; }
+      a { color: inherit; }
+      a::after { content: " (" attr(href) ")"; font-size: .7em; overflow-wrap: anywhere; }
+      .toc a::after, .back::after { content: ""; }
+    }
+  </style>
+</head>
+<body>
+<main class="page" id="top">
+  <header class="hero">
+    <p class="eyebrow">Defensive static review · remediation companion</p>
+    <h1>Baby Robot Arm Security Remediation Guide</h1>
+    <p class="lede">Implementation-oriented fixes for every finding in the security audit. Each entry identifies the vulnerable behavior, links to immutable source lines, shows the relevant code, recommends a repair, and explains why that repair changes the risk.</p>
+    <div class="stats" aria-label="Finding summary">
+      <div class="stat"><strong>28</strong><span>Total findings</span></div>
+      <div class="stat high"><strong>14</strong><span>High severity</span></div>
+      <div class="stat medium"><strong>12</strong><span>Medium severity</span></div>
+      <div class="stat low"><strong>2</strong><span>Low severity</span></div>
+    </div>
+    <p class="meta">Audit basis: repository <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control">qnx/Baby-Robot-Arm-with-Gamepad-Control</a>, branch <code>main</code>, commit <code>b83f3c6cef384146996139ed38c14ab1116e180d</code>. Source links below are pinned to that commit so line references remain stable.</p>
+    <div class="notice"><strong>Safety note:</strong> software changes alone cannot close the physical fail-safe findings. Keep the arm de-energized during development and add an independent normally-off OE/power path, hardware E-stop, and controlled test enclosure before motion testing.</div>
+  </header>
+
+  <nav aria-labelledby="contents-heading">
+    <h2 id="contents-heading">Contents</h2>
+    <ol class="toc">
+      <li><a href="#H-01">H-01 — ROS/DDS authorization</a></li>
+      <li><a href="#H-02">H-02 — Privileged writable paths</a></li>
+      <li><a href="#H-03">H-03 — XInput decoding</a></li>
+      <li><a href="#H-04">H-04 — Stale motion replay</a></li>
+      <li><a href="#H-05">H-05 — HID report takeover</a></li>
+      <li><a href="#H-06">H-06 — Spoofable device trust</a></li>
+      <li><a href="#H-07">H-07 — Malformed array crash</a></li>
+      <li><a href="#H-08">H-08 — Non-finite commands</a></li>
+      <li><a href="#H-09">H-09 — Disabled IK limits</a></li>
+      <li><a href="#H-10">H-10 — Incomplete safety model</a></li>
+      <li><a href="#H-11">H-11 — Motion during fault shutdown</a></li>
+      <li><a href="#H-12">H-12 — No crash-safe output disable</a></li>
+      <li><a href="#H-13">H-13 — Indefinite autonomous motion</a></li>
+      <li><a href="#H-14">H-14 — Unsensed startup motion</a></li>
+      <li><a href="#M-01">M-01 — Missing command controls</a></li>
+      <li><a href="#M-02">M-02 — Multi-controller race</a></li>
+      <li><a href="#M-03">M-03 — Incomplete HIDDI parameters</a></li>
+      <li><a href="#M-04">M-04 — Unsafe callback lifecycle</a></li>
+      <li><a href="#M-05">M-05 — Global I²C bus</a></li>
+      <li><a href="#M-06">M-06 — Incorrect software reset</a></li>
+      <li><a href="#M-07">M-07 — Unsafe timing</a></li>
+      <li><a href="#M-08">M-08 — Unvalidated parameters</a></li>
+      <li><a href="#M-09">M-09 — URDF substitution</a></li>
+      <li><a href="#M-10">M-10 — Supply-chain provenance</a></li>
+      <li><a href="#M-11">M-11 — Toolchain divergence</a></li>
+      <li><a href="#M-12">M-12 — Partial-stack survival</a></li>
+      <li><a href="#L-01">L-01 — Unsafe cleanup scope</a></li>
+      <li><a href="#L-02">L-02 — Environment disclosure</a></li>
+    </ol>
+  </nav>
+
+  <section aria-labelledby="architecture-heading">
+    <h2 id="architecture-heading">What the repaired safety boundary should look like</h2>
+    <div class="diagram-grid">
+      <div class="diagram">
+        <h3>Authorized command path</h3>
+        <p>Untrusted inputs terminate at one gateway; safety checks are layered before PWM.</p>
+        <pre class="mermaid">
+flowchart LR
+  U["Armed operator"] --> J["HID broker"]
+  J --> G["Authorized command gateway"]
+  D["Other DDS participant"] -. "denied by SROS2" .-> G
+  G --> V["Schema · finite · age · lease"]
+  V --> K["Joint · workspace · slew · collision"]
+  K --> A["Arm controller"]
+  A --> P["PCA9685"]
+  W["Independent watchdog / E-stop"] -. "fail-off OE or power" .-> P
+        </pre>
+      </div>
+      <div class="diagram">
+        <h3>Controller-loss behavior</h3>
+        <p>Freshness follows the physical report, not the 50 Hz republisher.</p>
+        <pre class="mermaid">
+flowchart TD
+  R["Validated HID report"] --> S["Update state and monotonic report time"]
+  S --> F{"Connected and physically fresh?"}
+  F -- Yes --> C["Publish sample with original receipt time"]
+  F -- No --> T["Latch terminal HID fault"]
+  X["Removal · report loss · watchdog expiry"] --> T
+  T --> N["Publish final ordered neutral"]
+  N --> E["Broker exits nonzero"]
+  E --> SUP["Supervisor stops complete control unit"]
+  C --> Q{"Consumer shape and age valid?"}
+  Q -- No --> OFF["Freeze targets and disable outputs"]
+  Q -- Yes --> D{"L3 dead-man held?"}
+  D -- Yes --> M["Apply bounded motion"]
+  D -- No --> OFF
+        </pre>
+      </div>
+      <div class="diagram">
+        <h3>Fail-safe lifecycle</h3>
+        <p>Fault handling goes directly to disabled; parking is a separate supervised operation.</p>
+        <pre class="mermaid">
+stateDiagram-v2
+  [*] --> Disabled
+  Disabled --> Homing: explicit arm and clear zone
+  Homing --> Armed: measured pose and checks pass
+  Homing --> Disabled: fault or timeout
+  Armed --> Disabled: fault, stale lease, or E-stop
+  Armed --> Parking: explicit operator request
+  Parking --> Disabled: complete
+  Parking --> Disabled: fault or timeout
+        </pre>
+      </div>
+      <div class="diagram">
+        <h3>Implementation order</h3>
+        <p>Later controls depend on the earlier containment and authority boundaries.</p>
+        <pre class="mermaid">
+flowchart LR
+  P0["0 · De-energize and isolate"] --> P1["1 · Identity, lease, validation"]
+  P1 --> P2["2 · Limits, model, collision"]
+  P2 --> P3["3 · Hardware fail-off and supervision"]
+  P3 --> P4["4 · Hermetic build, SBOM, dynamic tests"]
+        </pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="controls" aria-label="Finding filters">
+    <label for="finding-search">Filter findings</label>
+    <input id="finding-search" type="search" placeholder="Search ID, title, issue, or remediation">
+    <button type="button" data-filter="all" aria-pressed="true">All</button>
+    <button type="button" data-filter="high" aria-pressed="false">High</button>
+    <button type="button" data-filter="medium" aria-pressed="false">Medium</button>
+    <button type="button" data-filter="low" aria-pressed="false">Low</button>
+    <span class="result-count" id="result-count" aria-live="polite">28 findings shown</span>
+  </div>
+
+  <section class="severity-section" id="high-severity">
+    <h2>High-severity findings</h2>
+
+    <article class="finding high" id="H-01" data-severity="high">
+      <div class="finding-head">
+        <h3>H-01 — ROS/DDS actuator command plane has no enforced publisher authorization</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The controller and IK solver use global actuator-facing topics with ordinary depth-10 subscriptions. The repository launches them without an enforced SROS2 identity or deny-by-default topic policy, so any participant that can join the DDS domain can attempt to publish motion commands.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L148-L153">src/arm_controller/src/arm_controller_node.py:148–153</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/src/ik_solver_node.cpp#L115-L121">src/ik_solver/src/ik_solver_node.cpp:115–121</a>
+      </div>
+      <pre><code>self.mov_subscription = self.create_subscription(JointState, '/mov', self.mov_callback, 10)
+self.joy_subscription = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
+self.joint_subscription = self.create_subscription(JointState, "/joint", self.joint_callback, 10)</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Create a per-robot SROS2 keystore and a distinct enclave for the HID broker, IK solver, controller, and a single command gateway.</li>
+          <li>Enable DDS authentication/encryption and deny-by-default permissions. Only the gateway may publish actuator-facing commands; the controller may subscribe but not publish them.</li>
+          <li>Launch with fixed, root-owned security material and enforced security strategy. Put all topics in a per-robot namespace, use an assigned domain ID, and filter DDS transport at the network boundary.</li>
+          <li>Add one exclusive, expiring control lease and an independent physical E-stop. Namespaces and domain IDs are isolation aids, not authentication.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> DDS identity checks reject unknown participants, while topic permissions stop an authenticated but unauthorized node from writing motion topics. The lease bounds the lifetime of granted control; network isolation and E-stop provide independent containment.</div>
+      <p><strong>Patch status and residual:</strong> the launcher now requires enforced SROS2 operation, an explicit domain ID, and a per-robot namespace; actuator topics are relative and the runtime graph is unprivileged. Site-specific identities, governance, and deny-by-default permissions are intentionally not checked in. The deployer must generate and protect them, and an epoch or namespace is not publisher authentication.</p>
+    </article>
+
+    <article class="finding high" id="H-02" data-severity="high">
+      <div class="finding-head">
+        <h3>H-02 — Root launcher executes modules and setup code from user-writable search paths</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The documented launcher is run with root privileges, inherits loader/import paths, adds a user site directory, and sources a workspace <code>install/local_setup.bash</code>. With an initially empty <code>PYTHONPATH</code>, the leading empty component also selects the current directory. A lower-privileged writer can replace setup code, an installed node, or a shadow Python/native module and gain root execution on the next launch.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/target_scripts/start_robot.sh#L22-L25">target_scripts/start_robot.sh:22–25</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/target_scripts/start_robot.sh#L37-L39">target_scripts/start_robot.sh:37–39</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/README.md#L152-L153">README.md:152–153</a>
+      </div>
+      <pre><code>export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/jazzy/lib"
+export ROS2_NODES_INSTALL="&#36;{SCRIPT_DIR}/../install"
+export PYTHONPATH="$PYTHONPATH:/opt/ros/jazzy/usr/lib/python3.11/site-packages/:/data/home/qnxuser/.local/lib/python3.11/site-packages/"
+
+if [ -f &#36;{ROS2_NODES_INSTALL}/local_setup.bash ]; then
+    . &#36;{ROS2_NODES_INSTALL}/local_setup.bash
+fi</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Run the ROS nodes as an unprivileged service account. Grant only a small HID/I²C broker the minimum QNX abilities and device ACLs it needs.</li>
+          <li>Promote tested output to a fixed root-owned, non-writable versioned prefix; never source raw workspace build output after privilege elevation.</li>
+          <li>Start with a clean environment and assign absolute <code>PATH</code>, <code>LD_LIBRARY_PATH</code>, and <code>PYTHONPATH</code> values instead of appending inherited values. Set <code>PYTHONNOUSERSITE=1</code> and unset <code>PYTHONHOME</code>, <code>LD_PRELOAD</code>, and <code>BASH_ENV</code>.</li>
+          <li>Before launch, reject symlinks, non-root ownership, group/world-writable path components, and artifacts that fail a signed manifest/hash check.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> the privileged process no longer interprets files or modules writable by the runtime user, and compromise of an ordinary ROS node is no longer automatically elevated to full root authority.</div>
+    </article>
+
+    <article class="finding high" id="H-03" data-severity="high">
+      <div class="finding-head">
+        <h3>H-03 — XInput axes are decoded with the wrong signedness and byte order</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The parser describes signed 16-bit axes but combines bytes as unsigned big-endian offset-binary. A conventional centered XInput value <code>00 00</code> therefore becomes <code>-32768</code> and can be normalized to full-scale motion.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/parser.c#L129-L133">src/joy_teleop_hiddi/src/parser.c:129–133</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L158-L165">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:158–165</a>
+      </div>
+      <pre><code>case PARSER_MODE_ANALOG1x: return (data[6] * 0x100) + data[7] - 32768;
+case PARSER_MODE_ANALOG1y: return ((data[8] * 0x100) + data[9] - 32768) * -1;
+case PARSER_MODE_ANALOG2x: return (data[10] * 0x100) + data[11] - 32768;
+case PARSER_MODE_ANALOG2y: return ((data[12] * 0x100) + data[13] - 32768) * -1;</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Keep the corrected XInput decoder available for non-energized capture and parser tests, but do not bind the hardware output-enable hook or energize servos until packets captured from each exact controller/mode on QNX pass the boundary suite.</li>
+          <li>Decode low byte first as signed two’s-complement: combine to <code>uint16_t</code>, then convert values with the high bit set by subtracting <code>0x10000</code>. Prefer descriptor-derived logical limits where HIDDI exposes them.</li>
+          <li>Validate the exact report ID, header, length, and framing before parsing. Normalize the signed values by 32768.0, clamp to <code>[-1, 1]</code>, and invert each axis in one named mapping layer.</li>
+          <li>Add packet tests for center <code>00 00 → 0</code>, maximum <code>ff 7f → 32767</code>, minimum <code>00 80 → -32768</code>, plus captured F310/F710 reports.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> signed little-endian reconstruction maps neutral to zero instead of maximum motion. Schema validation prevents another report shape from being interpreted as axes, and captured boundary tests make the byte-order contract regression-proof.</div>
+    </article>
+
+    <article class="finding high" id="H-04" data-severity="high">
+      <div class="finding-head">
+        <h3>H-04 — Controller loss indefinitely replays the last motion command</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">A timer republishes cached joystick state with a new timestamp every 20 ms. Device removal detaches reports but does not clear that state, so unplugging or losing the wireless controller while a stick is deflected can continue incrementing targets indefinitely.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L99-L109">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:99–109</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L240-L246">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:240–246</a>
+      </div>
+      <pre><code>joy_msg.header.stamp = this-&gt;get_clock()-&gt;now();
+joy_msg.axes.assign(latest_axes_.begin(), latest_axes_.end());
+joy_msg.buttons.assign(latest_buttons_.begin(), latest_buttons_.end());
+publisher_-&gt;publish(joy_msg);
+
+// Removal only detaches; cached values remain.
+hidd_reports_detach(conn, inst);</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Track the active device, connection state, HID receipt timestamp, and monotonic last-valid-report time under the same lock as joystick state.</li>
+          <li>On active removal, report-stream loss, an invalid active report, or a report gap beyond the tested 250 ms bound, atomically clear every axis/button and irreversibly latch that broker process as terminal.</li>
+          <li>Establish a neutral final command state while holding the same publication-order lock used by the timer; orderly teardown may repeat neutral, but after the latch every queued or in-flight fresh report is discarded so depth-one DDS history cannot replace revocation with a later held-dead-man sample.</li>
+          <li>Shut down and exit nonzero so the launcher stops every member of the control unit. Require a fresh supervised start rather than reacquiring a controller in the faulted process.</li>
+          <li>For ordinary accepted reports, preserve the physical receipt timestamp rather than inventing freshness at the 50 Hz publication tick.</li>
+          <li>At the actuator consumer, independently reject stale/future commands, require a continuously held dead-man control, and process a valid dead-man release before parsing any other button chord.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> controller/report loss becomes a bounded, terminal source failure. Serializing the last neutral against all normal publications and forbidding any later fresh sample keeps DDS <code>KeepLast(1)</code> coalescing from erasing revocation. Nonzero exit lets launcher supervision disable the actuator process too, while the consumer's own age and held-dead-man checks still cover a hung broker or an undelivered final neutral.</div>
+      <p><strong>Patch status and residual:</strong> the broker now uses physical report timestamps, depth-one publication, a 250 ms monotonic watchdog, an irreversible terminal gate, final-neutral ordering, and nonzero supervised exit for active-input faults. The neutral is best-effort DDS traffic, so actuator-side expiry and the normally-off hardware output hook remain mandatory.</p>
+    </article>
+
+    <article class="finding high" id="H-05" data-severity="high">
+      <div class="finding-head">
+        <h3>H-05 — Non-exclusive HID report attachment permits silent local report takeover</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The report is attached with flags <code>0</code>. Under HIDDI’s attachment behavior, another local client can become the report recipient without this node noticing; combined with H-04, the last motion state can then replay.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L192-L201">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:192–201</a>
+      </div>
+      <pre><code>if (hidd_report_attach(conn, inst, report_inst, 0, sizeof(void*), &amp;report_handle) == EOK) {
+    void **user_data_slot = static_cast&lt;void**&gt;(hidd_report_extra(report_handle));
+    if (user_data_slot) { *user_data_slot = inst; }
+    return 0;
+}</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Attach with <code>HIDD_REPORT_EXCLUSIVE</code> and retain the returned report handle in a managed context.</li>
+          <li>Treat <code>EBUSY</code>, detach failures, missing extra storage, or watchdog-detected delivery loss as terminal source faults that publish a final neutral and exit nonzero.</li>
+          <li>Restrict HIDDI service/device access so only the small joystick broker can attach; the actuator process should not have HID access.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> exclusive attachment makes a later client fail visibly instead of silently stealing delivery. OS permissions reduce who can attempt takeover, and the freshness watchdog covers loss modes that exclusivity alone cannot detect.</div>
+    </article>
+
+    <article class="finding high" id="H-06" data-severity="high">
+      <div class="finding-head">
+        <h3>H-06 — VID/PID allowlisting is treated as device authentication</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Four spoofable USB VID/PID pairs select a parser, after which the first attachable report is trusted without checking desktop/gamepad usage, report identity, exact layout, button count, or logical ranges. A USB gadget, virtual HID, or wrong same-ID device can supply motion reports.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/parser.c#L43-L47">src/joy_teleop_hiddi/src/parser.c:43–47</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L210-L229">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:210–229</a>
+      </div>
+      <pre><code>const struct _device_lookup_storage _device_lookup[CONTROLLER_COUNT] = {
+    {0x046d, 0xc21d, prs_v046d_pc21d},
+    {0x046d, 0xc216, prs_v046d_pc216},
+    {0x046d, 0xc21f, prs_v046d_pc21d},
+    {0x046d, 0xc219, prs_v046d_pc219}
+};</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Treat VID/PID only as parser selection. Require Generic Desktop plus Gamepad/Joystick usage and a tested profile of report ID, exact length, framing, button count, and logical axis ranges.</li>
+          <li>Reject extra or ambiguous collections and validate every callback against the stored profile before committing state.</li>
+          <li>Bind one device number/physical port through explicit operator arming and restrict ports/HIDDI access. Product and serial strings may reduce mistakes but remain spoofable.</li>
+          <li>Retain a dead-man, report-age watchdog, and downstream lease because meaningful device authentication requires trusted hardware or a gateway.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> descriptor/profile validation prevents unrelated same-ID report layouts from becoming motion, while one-device ownership and OS restrictions narrow substitution paths. The design no longer mistakes public USB identifiers for cryptographic identity.</div>
+      <p><strong>Patch status and residual:</strong> this patch implements top-level gamepad usage, report identity, exact-length/framing, per-callback context, and single-active-device checks. Full descriptor-property fingerprinting—including button counts and logical ranges—remains a QNX target release gate pending captures from genuine F310/F710 controllers. The current implementation is therefore not claimed as USB-device authentication or complete descriptor validation.</p>
+    </article>
+
+    <article class="finding high" id="H-07" data-severity="high">
+      <div class="finding-head">
+        <h3>H-07 — Malformed ROS arrays crash the controller and trigger physical shutdown motion</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Callbacks index joystick and joint arrays before proving their dimensions. For example, unequal <code>JointState.name</code> and <code>position</code> lengths raise <code>IndexError</code>; the exception escapes the executor and enters a shutdown path that actively centers the arm.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_input.py#L326-L334">src/arm_controller/src/arm_controller_input.py:326–334</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L245-L269">src/arm_controller/src/arm_controller_node.py:245–269</a>
+      </div>
+      <pre><code>joint_count = len(msg.name)
+for joint_idx in range(joint_count):
+    if msg.name[joint_idx] not in self.joint_map:
+        continue
+    self.controller.set_joint_rad(
+        self.joint_map[msg.name[joint_idx]], msg.position[joint_idx]
+    )</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Validate before mode checks, indexing, or mutation. Require exactly the supported joystick schema, cap serialized array sizes, require buttons in <code>{0,1}</code>, and require finite axes.</li>
+          <li>For <code>JointState</code>, require equal name/position lengths, a bounded joint count, known unique names, and finite positions.</li>
+          <li>Build a temporary validated command and apply it atomically only after the entire sample passes; keep redundant checks in individual input handlers.</li>
+          <li>Catch callback errors locally, throttle rejection logs, and invoke H-11’s immediate output-disable fault path rather than centering.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> no array is indexed until its shape is proven, and atomic validation prevents partial actuator updates. A malformed sample is dropped without terminating the executor or turning error handling into a new motion command.</div>
+    </article>
+
+    <article class="finding high" id="H-08" data-severity="high">
+      <div class="finding-head">
+        <h3>H-08 — Non-finite and oversized numeric commands are not rejected</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Joint and Cartesian values reach comparison, clamping, FK/IK, and PWM conversion without a finite-number gate. In Python, NaN’s comparison behavior can make nested <code>min</code>/<code>max</code> expressions select an endpoint; in C++, NaN bypasses ordinary range comparisons and can poison solver state.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_control.py#L238-L260">src/arm_controller/src/arm_control.py:238–260</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/src/ik_solver_node.cpp#L280-L345">src/ik_solver/src/ik_solver_node.cpp:280–345</a>
+      </div>
+      <pre><code>normalized_rad = max(min(joint.max_rad, rad), -joint.max_rad) + joint.max_rad
+percent = normalized_rad / (joint.max_rad * 2) * 100
+return self.set_joint(joint_num, percent)</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>At every ingress, require <code>math.isfinite()</code> or <code>std::isfinite()</code> before comparison, clamping, state mutation, FK, or IK.</li>
+          <li>Reject the whole sample—not merely the offending field—when a value is non-finite or outside a strict joint, Cartesian, velocity, or acceleration envelope.</li>
+          <li>Validate IK output before publication and independently at the actuator boundary. Require exact joint names/count/order.</li>
+          <li>Track the last accepted command and enforce per-cycle displacement, velocity, and acceleration ceilings.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> NaN never reaches comparison semantics that can turn it into an endpoint, and huge/infinite values cannot poison solver state. Redundant output and actuator checks contain upstream calculation faults, while slew limits bound even a valid but discontinuous command.</div>
+    </article>
+
+    <article class="finding high" id="H-09" data-severity="high">
+      <div class="finding-head">
+        <h3>H-09 — IK mode removes calibrated joint limits and the solver enforces none</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Selecting IK explicitly disables calibrated actuator limits. The LMA solver is constructed without joint-limit arrays, and the URDF’s limits are not extracted or checked. A solution can therefore satisfy an XYZ target while exceeding the safe physical joint envelope.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L189-L201">src/arm_controller/src/arm_controller_node.py:189–201</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/src/ik_solver_node.cpp#L206-L216">src/ik_solver/src/ik_solver_node.cpp:206–216</a>
+      </div>
+      <pre><code>case ArmControlMode.IK:
+    self.active_input = self.input_ik
+    self.controller.enable_position_limits(False)</code></pre>
+      <pre><code>Eigen::Matrix&lt;double, 6, 1&gt; L;
+L &lt;&lt; 1, 1, 1, 0, 0, 0;
+ik_pos_solver_ = std::make_unique&lt;KDL::ChainIkSolverPos_LMA&gt;(kdl_chain_, L);</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Remove the IK call that disables limits. Make calibrated actuator bounds immutable and non-bypassable; mode-specific constraints may only narrow them.</li>
+          <li>Convert calibrated per-servo bounds to radians and use a joint-limited IK solver or reject every LMA solution outside those bounds.</li>
+          <li>Validate the seed and result for finiteness, exact joint identity, discontinuity, per-cycle delta, velocity, and acceleration. Reject malformed input before solving; if an active solve, FK, home-workspace, or publication invariant fails, exit nonzero so unit supervision fault-stops the actuator process.</li>
+          <li>Interpolate and validate the entire commanded path, not only the endpoint.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> a malicious target, alternate/singular IK solution, stale state, or solver defect cannot bypass the final independent constraint immediately upstream of PWM output.</div>
+    </article>
+
+    <article class="finding high" id="H-10" data-severity="high">
+      <div class="finding-head">
+        <h3>H-10 — Cartesian safety boundary uses an incomplete model and performs no collision checking</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The default KDL chain ends at <code>Arm_03_1</code>, before the gripper and a later revolute joint. Collision meshes referenced by the URDF are absent, and the solver only clamps one XYZ point. The physical tool or linkage can therefore leave the claimed safe region or collide while the modeled endpoint remains inside it.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/src/ik_solver_node.cpp#L36-L43">src/ik_solver/src/ik_solver_node.cpp:36–43</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/config/arm5dof.urdf#L163-L175">src/ik_solver/config/arm5dof.urdf:163–175</a>
+      </div>
+      <pre><code>this-&gt;declare_parameter&lt;std::string&gt;("base_link", "world");
+this-&gt;declare_parameter&lt;std::string&gt;("end_effector_link", "Arm_03_1");</code></pre>
+      <pre><code>&lt;joint name="Revolute_1" type="revolute"&gt;
+  &lt;parent link="Arm_03_1"/&gt;
+  &lt;child link="Gripper_Assembly_1"/&gt;
+  &lt;limit effort="1" velocity="1" lower="-1.5708" upper="1.5708"/&gt;
+&lt;/joint&gt;</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Rebuild the URDF from measured geometry so every articulated axis is in one chain; add a dedicated <code>tool0</code>/TCP after the complete gripper and make it the endpoint.</li>
+          <li>Fail startup unless expected joint count, names, axes, origins, and limits match an approved manifest.</li>
+          <li>Install simplified, verified collision geometry and perform self/environment collision plus swept/interpolated path checks before publication.</li>
+          <li>Apply workspace constraints to the tool and arm swept volume while retaining independent actuator joint limits.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> the safety calculation now represents the actual tool and full linkage. Collision-producing postures and paths are rejected even when a single endpoint coordinate lies inside its allowed box.</div>
+    </article>
+
+    <article class="finding high" id="H-11" data-severity="high">
+      <div class="finding-head">
+        <h3>H-11 — Fault shutdown moves the robot before disabling outputs</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Every exception leaving <code>spin()</code> reaches one shutdown routine that commands all joints to center, loops without a deadline, and disables PWM only afterward. A malformed message, I²C fault, collision, or termination signal can therefore create additional motion precisely when safe behavior should be stop-first.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L334-L344">src/arm_controller/src/arm_controller_node.py:334–344</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L361-L367">src/arm_controller/src/arm_controller_node.py:361–367</a>
+      </div>
+      <pre><code>self.smoothing_timer.cancel()
+self.controller.center_all_servos()
+while not self.controller.is_servos_centered():
+    self.controller.update()
+    time.sleep(0.02)
+self.controller.release_all_servos()
+self.controller.pwm.software_reset()</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Split shutdown into <code>fault_stop()</code> and an explicitly requested <code>park_and_stop()</code>.</li>
+          <li><code>fault_stop()</code> must stop accepting commands and immediately assert a hardware OE/servo-power cutoff. Treat I²C FULL_OFF as best-effort secondary cleanup and never center on this path.</li>
+          <li>Route callback exceptions, signals, I²C errors, and supervisor failures to fault stop.</li>
+          <li>Allow parking only after explicit clearance confirmation, with calibrated bounds, limited velocity, a monotonic deadline, and immediate abort-to-OE on error.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> faults cannot generate a second commanded trajectory, and the safe transition neither waits on an unbounded centering loop nor depends solely on the I²C path that may already have failed.</div>
+    </article>
+
+    <article class="finding high" id="H-12" data-severity="high">
+      <div class="finding-head">
+        <h3>H-12 — Actuator outputs and the three-process stack are not crash-safe</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">PWM release is software-only, channel changes require multiple I²C writes, and the launcher backgrounds three unsupervised processes. SIGKILL, interpreter abort, middleware failure, or I²C loss can leave the PCA9685 producing its last duty cycles while peer nodes remain alive.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_control.py#L172-L193">src/arm_controller/src/arm_control.py:172–193</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/target_scripts/start_robot.sh#L64-L81">target_scripts/start_robot.sh:64–81</a>
+      </div>
+      <pre><code>if not self.pwm_outputs_enabled:
+    self.pwm.enable_all_pwm()
+    self.pwm_outputs_enabled = True</code></pre>
+      <pre><code>ros2 run joy_teleop_hiddi joy_teleop_node &amp;
+
+ros2 run ik_solver ik_solver_node \
+    --ros-args \
+    -p cart_min_limits:="&#36;{CART_MIN_LIMITS}" \
+    -p cart_max_limits:="&#36;{CART_MAX_LIMITS}" &amp;
+
+ros2 run arm_controller arm_controller_node.py \
+    --ros-args \
+    -p servo_min_limits:="&#36;{SERVO_MIN_LIMITS}" \
+    -p servo_max_limits:="&#36;{SERVO_MAX_LIMITS}" &amp;
+
+wait</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Wire PCA9685 OE or servo power to a normally-disabled independent watchdog/enable circuit. Require a periodic heartbeat; loss of process/host power must disable outputs.</li>
+          <li>On partial I²C failure, assert that independent kill line before attempting further bus cleanup.</li>
+          <li>Replace bare background jobs with a QNX service or ROS lifecycle supervisor that treats all three nodes as required, records PIDs, terminates peers on first failure, and performs bounded cleanup with escalation.</li>
+          <li>Do not allow joystick or IK nodes to survive alone with stale command authority.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> the actuator defaults off even when Python, DDS, or I²C cleanup cannot execute, while unit supervision prevents a partially failed stack from continuing to publish or retain stale actuator state.</div>
+    </article>
+
+    <article class="finding high" id="H-13" data-severity="high">
+      <div class="finding-head">
+        <h3>H-13 — One command starts indefinite autonomous motion and may inherit disabled limits</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">One Start-plus-face-button sample enables an internally generated dance. While enabled, the normal inactivity check is skipped; entering from IK also preserves the disabled-limit state. A stale, accidental, or injected sample can therefore create indefinite autonomous motion outside the calibrated envelope.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L258-L270">src/arm_controller/src/arm_controller_node.py:258–270</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L322-L330">src/arm_controller/src/arm_controller_node.py:322–330</a>
+      </div>
+      <pre><code>if self.screensaver_enabled:
+    self.input_screensaver.update()
+elif not self.controller.servos_are_released:
+    has_timed_out = (
+        time.time() - self.controller.last_input_time
+    ) &gt; self.SERVO_RELEASE_TIMEOUT_SEC</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Model autonomous dance as a separate safety state entered only by an edge-triggered, explicitly armed request with a short renewable lease/dead-man and hard maximum duration.</li>
+          <li>Always re-enable calibrated limits before entry and validate the whole trajectory against per-joint and collision constraints.</li>
+          <li>Evaluate lease, heartbeat, and inactivity on every cycle, including autonomous cycles; fault-stop immediately when authority expires.</li>
+          <li>Do not refresh operator authority when internally generated targets call <code>set_joint()</code>.</li>
+          <li>On autonomous entry or dance change, autonomous cancellation, control-mode changes, and fault/disarm, freeze every queued target at the last commanded position before new authority can renew the lease. Re-arm then begins from the target already frozen by the preceding disabled state.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> a single sample cannot sustain motion, generated trajectories cannot inherit a less restrictive IK state, and losing or transferring authority cannot continue a stale trajectory from the prior state.</div>
+    </article>
+
+    <article class="finding high" id="H-14" data-severity="high">
+      <div class="finding-head">
+        <h3>H-14 — Startup enables motion from an assumed center without position feedback</h3>
+        <span class="badge">High</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Software initializes every joint as though it were centered, then commands centering and enables PWM without sensing the arm’s real pose. After manual displacement, reset, or power restoration, startup can cause unexpected travel.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_control.py#L81-L96">src/arm_controller/src/arm_control.py:81–96</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L167-L172">src/arm_controller/src/arm_controller_node.py:167–172</a>
+      </div>
+      <pre><code>self.center = max(self.min_pos, min(self.max_pos, 50.0))
+self.target = self.center
+self.current = self.center + self.SMOOTHING_FACTOR
+self.speed = self.SERVO_SPEEDS[joint.value]</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Initialize pose as unknown and keep OE/power disabled. Use an explicit <code>DISABLED → HOMING → ARMED</code> state machine.</li>
+          <li>Prefer absolute encoders or home switches. Seed the controller and planner only from a measured pose.</li>
+          <li>If sensing cannot be added immediately, require a manual safe-pose/clear-zone acknowledgement and use low-speed, torque/current-limited homing with a hard timeout and abort.</li>
+          <li>Remove unconditional startup centering and apply strict first-move slew limits.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> outputs cannot energize from a fictional pose, so restart or manual displacement does not turn the first timer tick into an uncontrolled centering trajectory.</div>
+    </article>
+  </section>
+
+  <section class="severity-section" id="medium-severity">
+    <h2>Medium-severity findings</h2>
+
+    <article class="finding medium" id="M-01" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-01 — Commands have no freshness, sequence, source lease, size, rate, or slew enforcement</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Default queued subscriptions accept unbounded semantic command streams without owner, age, sequence, or replay checks. Joystick movement increments once per received message and IK runs synchronously per sample, making physical speed and CPU load depend on publisher behavior.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L148-L153">src/arm_controller/src/arm_controller_node.py:148–153</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_input.py#L135-L140">src/arm_controller/src/arm_controller_input.py:135–140</a>
+      </div>
+      <pre><code>self.joy_subscription = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
+
+self.controller.move_joint(JointNum.BASE, -1 * msg.axes[GamepadAxis.X.value])
+self.controller.move_joint(JointNum.SHOULDER, msg.axes[GamepadAxis.Y.value])
+self.controller.move_joint(JointNum.ELBOW, msg.axes[GamepadAxis.RY.value])</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Put a command gateway before actuators and use a bounded command type with fixed fields plus <code>source_id</code>, <code>lease_id</code>, monotonic sequence, and source timestamp.</li>
+          <li>Before mutation, enforce schema, maximum serialized size, finite bounded values, active lease, accepted age/future skew, and strictly increasing sequence.</li>
+          <li>Use KeepLast(1), short lifespan/deadline QoS, DDS resource limits, and latest-sample coalescing instead of command backlogs.</li>
+          <li>Apply commands only at the fixed control tick; cap displacement using monotonic elapsed time and velocity/acceleration/jerk bounds. Rate-limit rejection logs and cap IK work.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> stale, replayed, out-of-order, oversized, and non-owner samples are dropped before state changes. Coalescing and fixed-rate work bound CPU/queue effects, while slew limits keep publisher rate from becoming robot speed.</div>
+      <p><strong>Patch status and residual:</strong> subscriptions now use depth one; Joy and actuator-facing JointState samples receive exact shape, finite/range, age/future-skew, replay, lease, and slew checks. Direct-joint entry and re-arm rotate a bounded process-lifetime epoch, announce it on relative <code>joint_session</code>, and require the exact <code>joint-session:N</code> frame in addition to the local receipt-time and source-stamp checks; zero revokes the producer session on fault or mode exit. This prevents a clock-skewed pre-grant sample from crossing a later grant. IK entry/re-arm rotates a bounded session epoch across <code>CurrentPositions</code>, <code>CartesianCmd</code>, and exact <code>ik-session:N</code> output frames; a newer synchronization revokes and burns its epoch before payload validation. These epochs order sessions but do not authenticate publishers. IK work uses a fixed nominal step and rejects excessive callback gaps. The variable-length ROS message types remain, and the two Float64 coordination topics remain unstamped and per-command unsequenced; production still needs bounded IDL, DDS resource limits, explicit source leases/timestamps/sequences, and full velocity/acceleration/jerk policy.</p>
+    </article>
+
+    <article class="finding medium" id="M-02" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-02 — Multiple supported controllers race through one global state</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Every matching device can attach, but every callback overwrites the same singleton vectors. Reports from two real or spoofed devices can interleave, and removal neither selects a remaining owner safely nor neutralizes the shared state.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L210-L229">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:210–229</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L154-L185">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:154–185</a>
+      </div>
+      <pre><code>if (try_attach_to_report(conn, inst, collections[i]) == 0) return;
+
+instance_-&gt;latest_axes_[0] =
+    parser(PARSER_MODE_ANALOG1x, len, (uint8_t*)data) / divisor * -1;</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Create one owned <code>ReportContext</code> per report with device number, handles, parser/profile, connection generation, and node owner.</li>
+          <li>Maintain one explicitly armed active device under a mutex; reject or ignore all other contexts.</li>
+          <li>Callbacks must validate active identity and generation, parse a complete temporary state, and commit atomically.</li>
+          <li>On active removal, latch a terminal source fault, publish the final neutral, and exit nonzero; do not auto-promote a standby device inside the same process.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> only one stable device identity can update control input. Generation checks reject late callbacks, and terminal supervised restart after active removal prevents a standby controller’s already-held controls from being promoted into immediate motion.</div>
+    </article>
+
+    <article class="finding medium" id="M-03" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-03 — HIDDI connection parameters omit API/server versions and wait behavior</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The HID connection parameter structure is zeroed and only its callback pointer is set. Required or expected API/server version and connection-wait fields are absent, and <code>perror()</code> may describe unrelated <code>errno</code> rather than HIDDI’s returned status.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L116-L130">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:116–130</a>
+      </div>
+      <pre><code>hidd_connect_parm_t hid_parms = {};
+hid_parms.funcs = &amp;hid_funcs;
+if (hidd_connect(&amp;hid_parms, &amp;g_hid_conn) != EOK) {
+    perror("hidd_connect");
+    return false;
+}</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Explicitly populate <code>path</code>, <code>vhid = HID_VERSION</code>, <code>vhidd = HIDD_VERSION</code>, <code>funcs</code>, and <code>connect_wait = HIDD_CONNECT_WAIT</code>; zero remaining/reserved fields.</li>
+          <li>Use a conservative device filter where practical to reduce irrelevant callbacks.</li>
+          <li>Save the integer return value and log <code>strerror(status)</code>. On failure, remain neutral/unarmed and exit nonzero so the supervisor sees the fault.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> explicit version negotiation avoids ABI/structure mismatches, deterministic wait behavior handles service startup, and correct status reporting makes connection failures actionable instead of leaving an apparently healthy but input-less controller.</div>
+    </article>
+
+    <article class="finding medium" id="M-04" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-04 — HID callback context and teardown are not exception/lifecycle safe</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The callback dereferences <code>user_data</code> without first checking it, attachment can report success without stored context, and teardown disconnects then destroys the mutex while leaving the static node pointer dangling. A callback anomaly or teardown race can crash or access destroyed state.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L142-L152">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:142–152</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L192-L201">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:192–201</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/joy_teleop_hiddi/src/joy_teleop_node.cpp#L73-L77">src/joy_teleop_hiddi/src/joy_teleop_node.cpp:73–77</a>
+      </div>
+      <pre><code>hidd_device_instance_t *inst = *(hidd_device_instance_t **)user_data;
+
+void **user_data_slot = static_cast&lt;void**&gt;(hidd_report_extra(report_handle));
+if (user_data_slot) { *user_data_slot = inst; }
+return 0;</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Check callback context, stored device pointer, data pointer, report handle, flags, and verified length before dereference or parsing. Commit only a fully parsed temporary state.</li>
+          <li>If report-extra storage is absent, detach immediately and return failure. Prefer owned per-report context over a static raw singleton.</li>
+          <li>Teardown in order: cancel timer, set stopping flag, neutralize, detach reports, disconnect, wait for in-flight callbacks to reach zero, invalidate contexts/generation, null the singleton, then destroy state.</li>
+          <li>Use <code>std::mutex</code>/<code>std::scoped_lock</code>; copy fixed-size state under lock and allocate ROS message vectors after unlock.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> pointer validation and all-or-nothing commits remove null and partial-state failures. A callback barrier prevents use-after-destruction, while RAII guarantees unlock even if copying or allocation throws.</div>
+    </article>
+
+    <article class="finding medium" id="M-05" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-05 — PCA9685 interface selection is ignored and the bus opens during import</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Bus 1 is opened as a module-import side effect. Although the constructor accepts an <code>interface</code>, every method uses the global bus, so the selected interface is ignored and a missing/wrong bus can fail before guarded controller initialization or address the wrong device at <code>0x40</code>.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/PCA9685.py#L27-L72">src/arm_controller/src/PCA9685.py:27–72</a>
+      </div>
+      <pre><code>SMBUS_INTERFACE = 1
+bus = smbus.SMBus(SMBUS_INTERFACE)
+
+class PCA9685(object):
+    def __init__(self, interface=SMBUS_INTERFACE, address=PCA9685_ADDRESS):
+        self.interface = interface
+        self.address = address</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Remove the module-level bus. Validate the interface against an allowed list and the address as a valid approved 7-bit address, then create <code>self.bus</code> inside guarded construction.</li>
+          <li>Replace every global <code>bus.*</code> use with <code>self.bus.*</code>; add idempotent <code>close()</code>/context-manager cleanup and dependency injection for tests.</li>
+          <li>Keep OE asserted/FULL_OFF until all configuration writes and read-back checks succeed; close and rethrow on partial initialization.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> imports become side-effect free, the requested bus is honored, failures happen inside controlled cleanup, and the driver cannot silently command a same-address device on an unintended interface.</div>
+    </article>
+
+    <article class="finding medium" id="M-06" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-06 — <code>software_reset()</code> writes a channel register instead of issuing SWRST</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue"><code>0x06</code> is used as a register index on the normal device address, so the method writes <code>LED0_ON_L</code> instead of sending the PCA9685 General Call reset sequence. Shutdown code relies on a reset that does not occur.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/PCA9685.py#L151-L155">src/arm_controller/src/PCA9685.py:151–155</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/PCA9685.py#L29-L40">src/arm_controller/src/PCA9685.py:29–40</a>
+      </div>
+      <pre><code>def software_reset(self):
+    """Sends a software reset (SWRST) command to all servo drivers on the bus."""
+    bus.write_byte_data(self.address, 0x06, 0x00)</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>If global reset is required, send raw data byte <code>0x06</code> to General Call address <code>0x00</code> using the platform’s verified SMBus primitive, wait the specified interval, and read back reset-state registers. Document that every responding device may reset.</li>
+          <li>Otherwise remove the misleading method. In both designs, use normally-disabled OE and FULL_OFF—not SWRST—as the safety mechanism.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> the reset opcode reaches the General Call address rather than becoming a channel-register index, and read-back detects failure. More importantly, safety no longer depends on a broadcast software reset succeeding.</div>
+    </article>
+
+    <article class="finding medium" id="M-07" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-07 — Safety timing uses adjustable clocks and IK permits oversized or negative <code>dt</code></h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The inactivity timer uses wall time, so a clock correction can postpone or prematurely trigger release. IK integrates using ROS time and replaces only gaps greater than 0.5 seconds; rollback produces negative integration, while a near-threshold delay permits a very large motion step.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L325-L330">src/arm_controller/src/arm_controller_node.py:325–330</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/src/ik_solver_node.cpp#L318-L324">src/ik_solver/src/ik_solver_node.cpp:318–324</a>
+      </div>
+      <pre><code>has_timed_out = (
+    time.time() - self.controller.last_input_time
+) &gt; self.SERVO_RELEASE_TIMEOUT_SEC</code></pre>
+      <pre><code>double dt = now - last_update_time_;
+if (dt &gt; 0.5) {
+  dt = 0.02;
+}
+last_update_time_ = now;</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Use <code>time.monotonic_ns()</code> in Python and a steady clock in C++.</li>
+          <li>Require finite <code>0 &lt; dt &lt;= max_dt</code>. On rollback or excessive gap, reset the baseline and discard the command instead of integrating it.</li>
+          <li>Run integration at a fixed bounded period and independently cap Cartesian displacement per cycle.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> wall/ROS clock jumps cannot defer inactivity release, reverse integration, or turn one delayed sample into a large step. The displacement ceiling remains protective even if timing is anomalous.</div>
+    </article>
+
+    <article class="finding medium" id="M-08" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-08 — Servo, Cartesian, and velocity safety parameters are not validated</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Servo arrays are passed straight into six indexed slots, Cartesian bounds are accepted when merely “at least” three elements long, and velocity/update parameters lack finite or safe-range checks. Invalid, inverted, NaN, short, or overly broad configuration can weaken the intended safety envelope before motion begins.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L115-L125">src/arm_controller/src/arm_controller_node.py:115–125</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/src/ik_solver_node.cpp#L42-L59">src/ik_solver/src/ik_solver_node.cpp:42–59</a>
+      </div>
+      <pre><code>self.declare_parameter("servo_min_limits", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+self.declare_parameter("servo_max_limits", [100.0, 100.0, 100.0, 100.0, 100.0, 100.0])
+self.controller = ArmController(
+    self.get_logger(),
+    self.get_parameter("servo_min_limits").value,
+    self.get_parameter("servo_max_limits").value,
+)</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Validate the complete configuration before constructing the actuator driver or enabling OE.</li>
+          <li>Require exactly six finite servo minima and maxima, with hardware-approved <code>0 &lt;= min &lt; max &lt;= 100</code>, a valid center, and calibration margin.</li>
+          <li>Require exactly three finite Cartesian minima/maxima, ordered inside an immutable hard workspace. Require finite bounded positive velocity scale and update rate, then actually schedule from the validated rate.</li>
+          <li>Add ROS parameter descriptors and an atomic on-set callback; invalid startup configuration must leave FULL_OFF/OE disabled and exit nonzero.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> invalid arrays and unsafe relationships are rejected as one unit before indexing or hardware access, and runtime parameter changes cannot silently widen the compiled/calibrated safety boundary.</div>
+    </article>
+
+    <article class="finding medium" id="M-09" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-09 — Configurable URDF path permits traversal, symlink, and model substitution</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">A caller-controlled filename is concatenated with an environment-controlled directory and checked only for existence before parsing. Traversal or symlinks can select an unapproved kinematic model, undermine safety calculations, or feed an oversized model to the parser.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/ik_solver/src/ik_solver_node.cpp#L128-L154">src/ik_solver/src/ik_solver_node.cpp:128–154</a>
+      </div>
+      <pre><code>std::string IKSolverNode::find_URDF(const std::string &amp;filename) {
+  const char *config_dir = std::getenv("URDF_PATH");
+
+  if (config_dir == nullptr) {
+    RCLCPP_ERROR(this-&gt;get_logger(), "URDF_PATH not set");
+    return "";
+  }
+
+  std::string full_path = std::string(config_dir) + "/" + filename;
+  int access_result = access(full_path.c_str(), F_OK);
+  if (access_result == 0) {
+    return full_path;
+  }
+}</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>For production, remove the override and resolve one root-owned installed model through the package index.</li>
+          <li>If configuration is required, canonicalize root and candidate with <code>std::filesystem</code>; compare path components and reject escape, symlinks, non-regular files, bad ownership/mode, or excessive size.</li>
+          <li>Avoid the check/open race: open once with no-follow behavior where supported, read a bounded buffer, verify an approved SHA-256, and parse those exact bytes.</li>
+          <li>After parsing, require the exact approved link/joint/limit manifest before enabling subscriptions or output.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> traversal and link swaps cannot escape the trusted model root, integrity binds the checked bytes to the parsed bytes, and semantic validation rejects a malicious but syntactically valid replacement.</div>
+    </article>
+
+    <article class="finding medium" id="M-10" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-10 — Dependency and artifact provenance is not reproducible or auditable</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The build executes an ambient ROS setup and PATH-resolved <code>colcon</code>, while dependencies are unpinned and some direct dependencies are absent from manifests. Ignored build output later runs with privilege, with no lock/snapshot, SBOM, signature, or promotion gate.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/build.sh#L22-L38">build.sh:22–38</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/package.xml#L9-L15">src/arm_controller/package.xml:9–15</a>
+      </div>
+      <pre><code>. "&#36;{ROS2_HOST_INSTALLATION_PATH}/local_setup.bash"
+colcon build --merge-install --cmake-force-configure</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Define one versioned manifest for QNX SDP/compiler, ROS snapshot, APK repository snapshot and resolved packages, Python artifacts, and CMake dependencies; verify repository and package signatures/hashes.</li>
+          <li>Build hermetically from that manifest and disable network after dependency fetch. Correct package manifests for every direct build/runtime dependency.</li>
+          <li>Generate an SPDX or CycloneDX SBOM, run SCA/SAST/tests in CI, record compiler/link flags, and sign the promoted install-tree manifest.</li>
+          <li>Deploy only verified artifacts to a root-owned runtime prefix and run them unprivileged.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> every input and output becomes traceable and repeatable, substitutions are detectable, and exact versions can be matched to security advisories or revoked without trusting mutable build directories.</div>
+      <p><strong>Patch status and residual:</strong> the convenience build now anchors the repository, uses an administrator-controlled executable path, rejects raw exported Bash-function entries and other unsafe raw environment names, clears Python-startup and executable CMake/colcon/compiler controls around setup metadata, disables ambient <code>PackageName_DIR</code>/<code>PackageName_ROOT</code> and registry searches, refuses workspace metadata and non-empty output bases, and launches <code>colcon</code> through a positive allowlist containing only fixed values plus enumerated QNX/ROS manifest inputs. Direct package dependencies are corrected. Dependency versions, QNX SDK roots, SBOM generation, artifact signing, and a hermetic fetch/build manifest remain release-pipeline responsibilities.</p>
+    </article>
+
+    <article class="finding medium" id="M-11" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-11 — Divergent toolchains and suppressed warnings weaken build assurance</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">One QNX toolchain targets CPython 3.8 while another and the launcher use 3.11. The active toolchain broadly suppresses several diagnostics, and the repository does not verify supported exploit-mitigation flags in final binaries.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/cmake/qnx.nto.toolchain.cmake#L51-L60">cmake/qnx.nto.toolchain.cmake:51–60</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/platform/qnx.nto.toolchain.cmake#L41-L42">platform/qnx.nto.toolchain.cmake:41–42</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/platform/qnx.nto.toolchain.cmake#L68-L83">platform/qnx.nto.toolchain.cmake:68–83</a>
+      </div>
+      <pre><code># Legacy toolchain
+set(PYTHON_SOABI cpython-38)
+set(PYTHON_MODULE_EXTENSION .cpython-38.so)
+
+# Other toolchain
+set(PYTHON_SOABI cpython-311)
+set(PYTHON_MODULE_EXTENSION .cpython-311.so)</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Retire the stale duplicate and generate/include one authoritative QNX/Python 3.11 toolchain.</li>
+          <li>At configure time, compare target interpreter version, include/library paths, and SOABI; fail configuration on any mismatch.</li>
+          <li>Remove blanket <code>-Wno-*</code>; allow documented target-specific exceptions and make actionable warnings fatal in CI.</li>
+          <li>Capability-test QNX-supported stack protection, fortify, PIE, RELRO/NOW, and CFI/LTO; enable supported controls per target and inspect produced binaries in CI.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> all extensions and runtime components share one ABI, important diagnostics remain visible, and hardening is measured in the shipped artifact instead of assumed from compiler defaults.</div>
+      <p><strong>Patch status and residual:</strong> this patch aligns the toolchains on Python 3.11, removes blanket diagnostic suppression, rejects preseeded host-Python cache/search selection, clears configure-time <code>QCC_CONF_PATH</code> and Python startup hooks, sanitizes inherited build controls, requires fresh output bases, builds as <code>RelWithDebInfo</code>, and capability-probes stack protection, fortify, PIE, and RELRO/NOW for the HID and IK executables. The supported <code>build.sh</code> launches the downstream build with a positive environment allowlist. A direct standalone CMake/toolchain workflow remains outside that hardened boundary because later build tools can inherit ambient controls such as <code>PYTHONPATH</code> or <code>QCC_CONF_PATH</code>; give it an equivalent clean environment and fresh cache. The toolchain still consumes administrator-supplied <code>QNX_HOST</code>, <code>QNX_TARGET</code>, <code>ARCH</code>, <code>CPUVAR</code>, <code>CPUVARDIR</code>, optional <code>NDDSHOME</code>, and optional dependency/ROS roots, all of which must be pinned in the release manifest. CFI/LTO are not enabled, and final QNX ELF files still require target inspection before promotion.</p>
+    </article>
+
+    <article class="finding medium" id="M-12" data-severity="medium">
+      <div class="finding-head">
+        <h3>M-12 — Launcher failure is not supervised as one system</h3>
+        <span class="badge">Medium</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">Three bare background processes are followed by a generic <code>wait</code>. One node can exit while siblings survive, and the arm controller catches an executor exception without propagating failure, so a supervisor may see success while part of the robot stack has failed.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/target_scripts/start_robot.sh#L64-L81">target_scripts/start_robot.sh:64–81</a>
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/src/arm_controller/src/arm_controller_node.py#L361-L367">src/arm_controller/src/arm_controller_node.py:361–367</a>
+      </div>
+      <pre><code>ros2 run joy_teleop_hiddi joy_teleop_node &amp;
+
+ros2 run ik_solver ik_solver_node \
+    --ros-args \
+    -p cart_min_limits:="&#36;{CART_MIN_LIMITS}" \
+    -p cart_max_limits:="&#36;{CART_MAX_LIMITS}" &amp;
+
+ros2 run arm_controller arm_controller_node.py \
+    --ros-args \
+    -p servo_min_limits:="&#36;{SERVO_MIN_LIMITS}" \
+    -p servo_max_limits:="&#36;{SERVO_MAX_LIMITS}" &amp;
+
+wait</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Prefer a QNX service/lifecycle supervisor. Declare all three processes required, own them in one job/process group, and kill every member if either a component or the launcher leader disappears.</li>
+          <li>If Bash remains, enable strict error handling, capture each PID, trap INT/TERM/EXIT, wait for the first child, assert hardware fail-off, terminate siblings, apply a bounded grace period, kill stragglers, reap all PIDs, and return the initiating failure code.</li>
+          <li>The controller must log unexpected exceptions after immediate fail-off. Active IK solver/FK/output invariant failures must also exit nonzero; coordinate with H-11 so no fault initiates parking.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> partial failure cannot leave stale publishers, orphaned nodes, or a live actuator process. Process-group ownership covers launcher SIGKILL, which shell traps cannot catch, and correct exit propagation lets an external supervisor lock out or restart the complete unit reliably.</div>
+      <p><strong>Patch status and residual:</strong> the launcher now records every active PID, traps catchable termination, stops and reaps siblings when any active node exits, escalates after a bounded grace period, and propagates failure; active IK invariant failures also exit nonzero. SIGKILL and launcher crashes cannot run traps, so the production service manager must own and kill the complete process group/job when the leader disappears.</p>
+    </article>
+  </section>
+
+  <section class="severity-section" id="low-severity">
+    <h2>Low-severity findings</h2>
+
+    <article class="finding low" id="L-01" data-severity="low">
+      <div class="finding-head">
+        <h3>L-01 — <code>clean.sh</code> deletes relative to the caller’s directory</h3>
+        <span class="badge">Low</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The cleanup script does not anchor its deletion targets to the repository. Calling the script by absolute path from another working directory deletes any same-named <code>logs</code>, <code>install</code>, <code>build</code>, and <code>log</code> directories there.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/clean.sh#L1-L2">clean.sh:1–2</a>
+      </div>
+      <pre><code>#!/bin/bash
+rm -fr logs install build log</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Resolve the canonical repository root from <code>BASH_SOURCE[0]</code>, not the caller’s current directory.</li>
+          <li>Refuse an empty path, filesystem root, home directory, or any location missing expected sentinels such as <code>.git</code>, <code>src</code>, and <code>build.sh</code>.</li>
+          <li>Construct an explicit array of absolute targets, verify each target’s parent is exactly the validated repository root, then remove only those paths with <code>rm -rf --</code>.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> deletion scope becomes invariant under the caller’s working directory, and the guardrails prevent an empty, broad, or unexpected root from expanding cleanup into unrelated data.</div>
+    </article>
+
+    <article class="finding low" id="L-02" data-severity="low">
+      <div class="finding-head">
+        <h3>L-02 — Build diagnostics dump every environment variable matching <code>ROS</code></h3>
+        <span class="badge">Low</span>
+      </div>
+      <h4>Issue</h4>
+      <p class="issue">The build prints every environment entry whose name or value contains <code>ROS</code>. A future credential, token, keystore value, certificate path, or sensitive deployment variable can be copied into terminal output and persistent CI logs.</p>
+      <h4>Source and vulnerable code</h4>
+      <div class="sources">
+        <a href="https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control/blob/b83f3c6cef384146996139ed38c14ab1116e180d/build.sh#L33-L35">build.sh:33–35</a>
+      </div>
+      <pre><code>echo "--- ROS Environment Variables ---"
+printenv | grep "ROS"
+echo "-------------------------------"</code></pre>
+      <div class="remediation">
+        <h4>Remediation</h4>
+        <ul>
+          <li>Print only an explicit allowlist such as <code>ROS_DISTRO</code>, <code>ROS_VERSION</code>, <code>ROS_PYTHON_VERSION</code>, and <code>RMW_IMPLEMENTATION</code>.</li>
+          <li>Show <code>&lt;unset&gt;</code> or a redacted/basename-only value when paths could be sensitive. Never print keystore, token, private-key, certificate-secret, or arbitrary inherited variables.</li>
+          <li>Keep shell tracing disabled and apply appropriate access/retention rules to build logs.</li>
+        </ul>
+      </div>
+      <div class="why"><strong>Why this works:</strong> useful build metadata remains visible, but new secret-bearing variables are not automatically swept into logs simply because their names or values contain a broad substring.</div>
+    </article>
+  </section>
+
+  <section class="closing" id="verification">
+    <h2>Closure and verification</h2>
+    <ol class="priority-list">
+      <li>Land containment first: validate XInput against genuine QNX captures before energizing hardware, isolate DDS, stop privileged launches from writable paths, keep calibrated limits enabled, and keep hardware OE/power off by default.</li>
+      <li>Add unit tests for every parser boundary, malformed/NaN message, parameter invariant, timing rollback, device loss, and solver-output rejection.</li>
+      <li>Add integration tests that kill each process, steal/lose the HID stream, revoke DDS credentials, break I²C transactions, and prove outputs become disabled within a measured deadline.</li>
+      <li>Run captured-report tests and motion tests on real QNX hardware inside a guarded enclosure, starting with servos disconnected and then with low torque/speed.</li>
+      <li>Generate an SBOM from the exact target image and scan the resolved packages; static source review cannot identify CVEs for versions that the repository does not record.</li>
+    </ol>
+    <h3>Primary implementation references</h3>
+    <ul>
+      <li><a href="https://docs.ros.org/en/ros2_documentation/jazzy/Tutorials/Advanced/Security/The-Keystore.html">ROS 2 Jazzy: SROS2 keystores, enclaves, governance, and permissions</a></li>
+      <li><a href="https://www.qnx.com/developers/docs/qnxeverywhere/com.qnx.doc.ddk/topic/hid/object_macros.html">QNX HIDDI report-attachment flags</a></li>
+      <li><a href="https://www.qnx.com/developers/docs/qnxeverywhere/com.qnx.doc.ddk/topic/hid/HID_stub.html">QNX HIDDI connection initialization example</a></li>
+      <li><a href="https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf">NXP PCA9685 datasheet</a></li>
+      <li><a href="https://github.com/orocos/orocos_kinematics_dynamics/blob/master/orocos_kdl/src/chainiksolverpos_nr_jl.hpp">Orocos KDL joint-limited IK solver interface</a></li>
+      <li><a href="vendor/MERMAID-LICENSE.txt">Vendored Mermaid 11.4.1 license</a></li>
+    </ul>
+    <p class="small">This change set implements the repository-level remediations described in the patch-status notes and adds host regression checks. “Fixed” still requires the target-level verification, credentials, dependency provenance, hardware controls, and operating controls identified above; the report does not claim complete vulnerability elimination, hardware safety, or deployment certification.</p>
+    <a class="back" href="#top">Back to top</a>
+  </section>
+</main>
+
+<!--
+  Mermaid is vendored so this security report remains fully usable offline and
+  viewing it cannot execute mutable third-party CDN content. The exact 11.4.1
+  bytes were compared across jsDelivr and unpkg before inclusion.
+  SHA-256: a43bc1afd446f9c4cc66ac5dd45d02e8d65e26fc5344ec0ef787f88d6ddb6f9e
+-->
+<script
+  src="vendor/mermaid-11.4.1.min.js"
+  integrity="sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I"
+></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: "strict",
+      theme: "neutral",
+      flowchart: { htmlLabels: false, curve: "basis" }
+    });
+  }
+
+  const findings = Array.from(document.querySelectorAll(".finding"));
+  const search = document.getElementById("finding-search");
+  const buttons = Array.from(document.querySelectorAll("[data-filter]"));
+  const count = document.getElementById("result-count");
+  let severity = "all";
+
+  function applyFilters() {
+    const query = search.value.trim().toLowerCase();
+    let shown = 0;
+    findings.forEach((finding) => {
+      const severityMatch = severity === "all" || finding.classList.contains(severity);
+      const textMatch = !query || finding.textContent.toLowerCase().includes(query);
+      finding.hidden = !(severityMatch && textMatch);
+      if (!finding.hidden) shown += 1;
+    });
+    count.textContent = shown + (shown === 1 ? " finding shown" : " findings shown");
+  }
+
+  search.addEventListener("input", applyFilters);
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      severity = button.dataset.filter;
+      buttons.forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+      applyFilters();
+    });
+  });
+</script>
+</body>
+</html>

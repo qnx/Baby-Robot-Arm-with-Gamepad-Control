@@ -14,13 +14,17 @@
 # limitations under the License.
 #
 
-from arm_control import JointNum, ArmController
 from enum import Enum
 import math
-from sensor_msgs.msg import Joy, JointState
 import time
+
+from sensor_msgs.msg import Joy, JointState
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from std_msgs.msg import Float64MultiArray
+
+from arm_control import NUM_SERVOS, JointNum, ArmController
+from safety import finite_float, validate_ik_session_epoch, validate_joint_state
+
 
 class ArmControllerInput:
 
@@ -111,11 +115,11 @@ class ArmControllerJoystickInput(ArmControllerInput):
     Controls:
         Left Stick X     -> Base        (servo 0)
         Left Stick Y     -> Shoulder    (servo 1)
-        Right Stick X    -> Elbow       (servo 2)
-        Right Stick Y    -> Hand tilt   (servo 4)
+        Right Stick Y    -> Elbow       (servo 2)
+        Right Stick X    -> Hand tilt   (servo 4)
         DPAD X           -> Hand rotate (servo 3)
         Shoulder Buttons -> Gripper     (servo 5)
-        Stick Buttons    -> Gripper     (servo 5) Note same as Shoulder Buttons
+        Right Stick      -> Open gripper (servo 5); L3 is reserved for dead-man
 
         Y                -> Center all servos
     """
@@ -129,22 +133,22 @@ class ArmControllerJoystickInput(ArmControllerInput):
         # Home button ('Y') is a master override
         if msg.buttons[GamepadButton.Y.value] == 1:
             self.get_logger().info("Home button pressed. Setting target to safe center.")
-            self.controller.center_all_servos()
+            self.controller.center_all_servos(record_activity=False)
             return
 
         # --- Normal Joystick Control Logic ---
-        self.controller.move_joint(JointNum.BASE, -1 * msg.axes[GamepadAxis.X.value])
-        self.controller.move_joint(JointNum.SHOULDER, msg.axes[GamepadAxis.Y.value])
-        self.controller.move_joint(JointNum.ELBOW, msg.axes[GamepadAxis.RY.value])
-        self.controller.move_joint(JointNum.WRIST, msg.axes[GamepadAxis.DX.value])
-        self.controller.move_joint(JointNum.HAND, -1 * msg.axes[GamepadAxis.RX.value])
+        self.controller.move_joint(JointNum.BASE, -1 * msg.axes[GamepadAxis.X.value], record_activity=False)
+        self.controller.move_joint(JointNum.SHOULDER, msg.axes[GamepadAxis.Y.value], record_activity=False)
+        self.controller.move_joint(JointNum.ELBOW, msg.axes[GamepadAxis.RY.value], record_activity=False)
+        self.controller.move_joint(JointNum.WRIST, msg.axes[GamepadAxis.DX.value], record_activity=False)
+        self.controller.move_joint(JointNum.HAND, -1 * msg.axes[GamepadAxis.RX.value], record_activity=False)
 
-        # Gripper Logic: Shoulders (4/5) OR Stick Clicks (10/11)
-        if msg.buttons[GamepadButton.L1.value] == 1 or msg.buttons[GamepadButton.L3.value] == 1:
-            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_CLOSED_PERCENT)
+        # L3 is the dedicated operator-enable input and must never command a joint.
+        if msg.buttons[GamepadButton.L1.value] == 1:
+            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_CLOSED_PERCENT, record_activity=False)
             self.get_logger().info("Closing gripper.")
         elif msg.buttons[GamepadButton.R1.value] == 1 or msg.buttons[GamepadButton.R3.value] == 1:
-            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_OPEN_PERCENT)
+            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_OPEN_PERCENT, record_activity=False)
             self.get_logger().info("Opening gripper.")
 
 
@@ -180,8 +184,8 @@ class ArmControllerScreensaverInput(ArmControllerInput):
             50.0,  # Servo 0: Base
             SHOULDER_FORWARD_REACH,  # Servo 1: Shoulder
             ELBOW_DOWNWARD_BEND,  # Servo 2: Elbow
-            (100 - ELBOW_DOWNWARD_BEND) + WRIST_CORRECTION,  # Servo 3: Wrist Pitch (Auto-calculated)
-            50.0,  # Servo 4: Wrist Roll (Keep centered)
+            50.0,  # Servo 3: Wrist Roll (Keep centered)
+            (100 - ELBOW_DOWNWARD_BEND) + WRIST_CORRECTION,  # Servo 4: Wrist Pitch (Auto-calculated)
             50.0,  # Servo 5: Gripper
         ]
 
@@ -202,7 +206,7 @@ class ArmControllerScreensaverInput(ArmControllerInput):
         """
         # --- Screensaver Motion Logic with Pause ---
         if self.screensaver_is_paused:
-            if (time.time() - self.pause_start_time) >= self.SCREENSAVER_PAUSE_SEC:
+            if (time.monotonic() - self.pause_start_time) >= self.SCREENSAVER_PAUSE_SEC:
                 self.screensaver_is_paused = False
                 self.screensaver_time = 0.0
             return
@@ -210,12 +214,26 @@ class ArmControllerScreensaverInput(ArmControllerInput):
         self.screensaver_time += self.SCREENSAVER_SPEED
         if self.screensaver_time >= (2 * math.pi):
             self.screensaver_is_paused = True
-            self.pause_start_time = time.time()
+            self.pause_start_time = time.monotonic()
             return
 
         position = self.DANCE_REGISTRY[self.dance]()
-        for i in range(len(position)):
-            self.controller.set_joint(JointNum(i), position[i])
+        # Site calibration may be narrower than a demonstration curve. Clip
+        # internal motion at that immutable envelope; external commands remain
+        # reject-only so malformed input cannot hide behind clamping.
+        commands = tuple(
+            (
+                JointNum(index),
+                self.controller.constrain_internal_target_percent(JointNum(index), value),
+            )
+            for index, value in enumerate(position)
+        )
+        # Apply the complete bounded pose atomically and never refresh the
+        # operator dead-man lease from internally generated motion.
+        self.controller.set_joint_targets_percent_atomic(
+            commands,
+            record_activity=False,
+        )
 
     def start(self, dance: ScreenSaverDance):
         """
@@ -247,8 +265,8 @@ class ArmControllerScreensaverInput(ArmControllerInput):
         positions[0] = pose[0] + offset_x
         positions[1] = pose[1] - (offset_z * self.SHOULDER_COMPENSATION)
         positions[2] = pose[2] + offset_z
-        positions[3] = pose[3] - (offset_z * self.WRIST_COMPENSATION)
-        positions[4] = pose[4]
+        positions[3] = pose[3]
+        positions[4] = pose[4] - (offset_z * self.WRIST_COMPENSATION)
         positions[5] = pose[5]
         return positions
 
@@ -266,8 +284,8 @@ class ArmControllerScreensaverInput(ArmControllerInput):
         positions[0] = pose[0] + base_swing
         positions[1] = pose[1] + shoulder_swing
         positions[2] = pose[2] - elbow_bend
-        positions[3] = pose[3] + wrist_open
-        positions[4] = pose[4]
+        positions[3] = pose[3]
+        positions[4] = pose[4] + wrist_open
         positions[5] = pose[5]
         return positions
 
@@ -281,10 +299,10 @@ class ArmControllerScreensaverInput(ArmControllerInput):
         rise = self.SCREENSAVER_HEIGHT * math.sin(self.screensaver_time)
         sway = self.SCREENSAVER_WIDTH * math.sin(self.screensaver_time / 2)
         positions[0] = pose[0] + sway
-        positions[1] = pose[1] - rise * 1.2
+        positions[1] = pose[1] - rise
         positions[2] = pose[2] - rise
-        positions[3] = pose[3] + (rise * self.WRIST_COMPENSATION) + (rise * self.SHOULDER_COMPENSATION * 1.2)
-        positions[4] = pose[4]
+        positions[3] = pose[3]
+        positions[4] = pose[4] + (rise * self.WRIST_COMPENSATION) + (rise * self.SHOULDER_COMPENSATION * 1.2)
         positions[5] = pose[5]
         return positions
 
@@ -302,8 +320,8 @@ class ArmControllerScreensaverInput(ArmControllerInput):
         positions[0] = pose[0] + sweep
         positions[1] = pose[1] + arc
         positions[2] = pose[2] + beat
-        positions[3] = pose[3] - (beat * self.WRIST_COMPENSATION)
-        positions[4] = pose[4] + roll_tilt
+        positions[3] = pose[3] + roll_tilt
+        positions[4] = pose[4] - (beat * self.WRIST_COMPENSATION)
         positions[5] = pose[5]
         return positions
 
@@ -324,13 +342,13 @@ class ArmControllerJointInput(ArmControllerInput):
     }
 
     def joint_callback(self, msg: JointState):
-        joint_count = len(msg.name)
-        for joint_idx in range(joint_count):
-            if msg.name[joint_idx] not in self.joint_map:
-                self.get_logger().warn(f"Invalid joint {msg.name[joint_idx]} in joint message")
-                continue
-
-            self.controller.set_joint_rad(self.joint_map[msg.name[joint_idx]], msg.position[joint_idx])
+        validated = validate_joint_state(msg.name, msg.position, self.joint_map, NUM_SERVOS)
+        # A DDS publisher is not an operator-enable source. Only a validated Joy
+        # sample with held L3 may renew the actuator lease at the node boundary.
+        self.controller.set_joint_targets_rad_atomic(
+            ((self.joint_map[name], radians) for name, radians in validated),
+            record_activity=False,
+        )
 
 
 class ArmControllerInverseKinematicInput(ArmControllerInput):
@@ -353,11 +371,26 @@ class ArmControllerInverseKinematicInput(ArmControllerInput):
         super().__init__(controller, logger)
         self.cartesian_pub = cartesian_pub
         self.curr_pos_pub = curr_pos_pub
+        self._session_epoch = None
+
+    def begin_session(self, epoch: int) -> None:
+        """Bind all solver traffic to one actuator-granted authority epoch."""
+        self._session_epoch = validate_ik_session_epoch(epoch)
+
+    def clear_session(self) -> None:
+        """Revoke the adapter's ability to publish IK commands."""
+        self._session_epoch = None
+
+    def _require_session_epoch(self) -> int:
+        if self._session_epoch is None:
+            raise RuntimeError("IK input has no active authority epoch")
+        return validate_ik_session_epoch(self._session_epoch)
 
     def focus(self):
         """
         Publishes the current position of the arm position on state change back to IK mode
         """
+        epoch = self._require_session_epoch()
         cmd = Float64MultiArray()
         cmd.data = [
             self.controller.get_joint_rad(JointNum.BASE),
@@ -365,16 +398,10 @@ class ArmControllerInverseKinematicInput(ArmControllerInput):
             self.controller.get_joint_rad(JointNum.ELBOW),
             self.controller.get_joint_rad(JointNum.WRIST),
             self.controller.get_joint_rad(JointNum.HAND),
-            0.0
+            # Float64 is exact for every bounded integer epoch accepted above.
+            float(epoch),
         ]
         self.curr_pos_pub.publish(cmd)
-
-    def center_ortn_servos(self):
-        """
-        @brief centers orientation servos, respecting the safe limits.
-        """
-        for joint in [JointNum.WRIST, JointNum.HAND, JointNum.GRIPPER]:
-            self.controller.center_joint(joint)
 
     def joy_callback(self, msg: Joy):
         # --- Joystick Control Logic ---
@@ -387,43 +414,53 @@ class ArmControllerInverseKinematicInput(ArmControllerInput):
 
         # A gripper-only button press must not trigger another IK solve.
         if cartesian_input:
+            epoch = self._require_session_epoch()
             cmd = Float64MultiArray()
             cmd.data = [
-                -msg.axes[GamepadAxis.X.value],
-                msg.axes[GamepadAxis.Y.value],
-                msg.axes[GamepadAxis.RY.value],
-                float(msg.buttons[GamepadButton.Y.value]) # data[3]: home button
+                finite_float(-msg.axes[GamepadAxis.X.value], "Cartesian X"),
+                finite_float(msg.axes[GamepadAxis.Y.value], "Cartesian Y"),
+                finite_float(msg.axes[GamepadAxis.RY.value], "Cartesian Z"),
+                float(msg.buttons[GamepadButton.Y.value]),  # data[3]: home button
+                float(epoch),
             ]
             self.cartesian_pub.publish(cmd)
         
         if msg.buttons[GamepadButton.Y.value] == 1:
-            self.get_logger().info("Home button pressed. Setting target to safe center.")
-            self.center_ortn_servos()
+            # The solver owns the bounded incremental center trajectory. Moving
+            # the local target ahead of its first response would manufacture a
+            # large reverse step and trip the actuator discontinuity guard.
+            self.get_logger().info("Center request sent to the IK solver.")
             return
 
-        self.controller.move_joint(JointNum.WRIST, msg.axes[GamepadAxis.DX.value])
-        self.controller.move_joint(JointNum.HAND, -1 * msg.axes[GamepadAxis.RX.value])
+        # The IK solver owns all five articulated-joint targets after one full
+        # state synchronization. Local wrist/hand updates would make its seed
+        # stale and could undo motion or trip the actuator discontinuity guard.
+        # Add a stamped, acknowledged resynchronization protocol before
+        # introducing any direct joint adjustments in this mode.
 
-        # Gripper Logic: Shoulders OR Stick Clicks
-        if msg.buttons[GamepadButton.L1.value] == 1 or msg.buttons[GamepadButton.L3.value] == 1:
+        # L3 is the dedicated operator-enable input and must never command a joint.
+        if msg.buttons[GamepadButton.L1.value] == 1:
             self.get_logger().info("Closing gripper.")
-            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_CLOSED_PERCENT)
+            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_CLOSED_PERCENT, record_activity=False)
         elif msg.buttons[GamepadButton.R1.value] == 1 or msg.buttons[GamepadButton.R3.value] == 1:
             self.get_logger().info("Opening gripper.")
-            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_OPEN_PERCENT)
+            self.controller.set_joint(JointNum.GRIPPER, self.GRIPPER_OPEN_PERCENT, record_activity=False)
 
     def mov_callback(self, msg: JointState):
         """
-        @param msg: Float64MultiArray containing joint angles in radians.
-            data[0]: Joint 0 angle (Base)
-            data[1]: Joint 1 angle (Shoulder)
-            data[2]: Joint 2 angle (Elbow)
-            data[3]: Joint 3 angle (Wrist Pitch)
-            data[4]: Joint 4 angle (Wrist Roll)
+        @param msg: JointState with the validated five-joint IK schema.
         """
-        if len(msg.position) < 3:
-            return
-
-        self.controller.set_joint_rad(JointNum.BASE, msg.position[0])
-        self.controller.set_joint_rad(JointNum.SHOULDER, msg.position[1])
-        self.controller.set_joint_rad(JointNum.ELBOW, msg.position[2])
+        if len(msg.position) != 5:
+            raise ValueError("IK JointState must contain exactly five positions")
+        # IK output never renews the operator dead-man lease; only fresh joystick
+        # input may keep IK control armed.
+        self.controller.set_joint_targets_rad_atomic(
+            (
+                (JointNum.BASE, finite_float(msg.position[0], "IK base")),
+                (JointNum.SHOULDER, finite_float(msg.position[1], "IK shoulder")),
+                (JointNum.ELBOW, finite_float(msg.position[2], "IK elbow")),
+                (JointNum.WRIST, finite_float(msg.position[3], "IK wrist")),
+                (JointNum.HAND, finite_float(msg.position[4], "IK hand")),
+            ),
+            record_activity=False,
+        )

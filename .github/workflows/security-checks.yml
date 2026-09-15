@@ -1,0 +1,70 @@
+name: Security regression checks
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  host-safety-tests:
+    runs-on: ubuntu-latest
+    steps:
+      # Pin the action so a moved tag cannot silently change trusted CI code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # These host tests exercise fail-closed parsing and command validation.
+      # They complement, but do not replace, the QNX and guarded-hardware gates
+      # documented in SECURITY.md.
+      - name: Test Python actuator safety
+        run: python3 -m unittest discover -s src/arm_controller/test -p 'test_*.py' -v
+
+      - name: Compile Python entry points
+        run: >-
+          python3 -m py_compile
+          src/arm_controller/src/PCA9685.py
+          src/arm_controller/src/arm_control.py
+          src/arm_controller/src/arm_controller_input.py
+          src/arm_controller/src/arm_controller_node.py
+          src/arm_controller/src/safety.py
+
+      - name: Test HID parser with strict diagnostics
+        run: |
+          cc -std=c99 -Wall -Wextra -Wpedantic -Werror -fanalyzer \
+            -Isrc/joy_teleop_hiddi/test/stubs \
+            -Isrc/joy_teleop_hiddi/include \
+            src/joy_teleop_hiddi/test/test_parser.c \
+            src/joy_teleop_hiddi/src/parser.c \
+            -o /tmp/joy_parser_unit_tests
+          /tmp/joy_parser_unit_tests
+
+      - name: Test HID publication revocation ordering
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -fanalyzer \
+            -Isrc/joy_teleop_hiddi/include \
+            src/joy_teleop_hiddi/test/test_publication_gate.cpp \
+            -o /tmp/joy_publication_gate_tests
+          /tmp/joy_publication_gate_tests
+
+      - name: Test IK safety helpers with strict diagnostics
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Wpedantic -Werror \
+            -Isrc/ik_solver/include \
+            src/ik_solver/test/test_safety_validation.cpp \
+            -o /tmp/ik_safety_validation_tests
+          /tmp/ik_safety_validation_tests
+
+      - name: Check shell and package syntax
+        run: |
+          bash -n build.sh clean.sh target_scripts/start_robot.sh \
+            cmake/sanitize-build-environment.bash test/test_build_environment.sh
+          bash test/test_build_environment.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          for path in sorted(Path("src").glob("*/package.xml")):
+              ElementTree.parse(path)
+              print(f"valid XML: {path}")
+          PY

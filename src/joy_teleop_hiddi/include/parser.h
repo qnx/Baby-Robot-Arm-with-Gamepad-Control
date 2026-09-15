@@ -47,16 +47,7 @@ extern "C" {
  * @param data A pointer to the raw HID report data.
  * @return The parsed integer value (a bitmask for buttons, or an axis value).
  */
-typedef int (*parser_func_t)(int mode, int data_len, uint8_t *data);
- 
-/**
- * @brief Structure to map a VID/PID pair to a specific parser function.
- */
-struct _device_lookup_storage {
-    int vid;           // Vendor ID
-    int pid;           // Product ID
-    parser_func_t parser; // Function pointer to the corresponding parser
-};
+typedef int (*parser_func_t)(int mode, int data_len, const uint8_t *data);
  
 /**
  * @brief Retrieves the correct parser function for a given device.
@@ -66,6 +57,26 @@ struct _device_lookup_storage {
  * @return A function pointer to the correct parser, or `prs_generic` if not found.
  */
 parser_func_t get_parser(int vid, int pid);
+
+/**
+ * @brief Gets the exact raw report length required by a device profile.
+ *
+ * Fixed-offset parsing is safe only for the tested, exact wire layout. The HID
+ * node uses this value to reject shorter, longer, or composite report layouts.
+ *
+ * @return The exact length in bytes, or -1 for an unsupported device.
+ */
+int get_parser_report_length(int vid, int pid);
+
+/**
+ * @brief Validates a report against its VID/PID-specific wire profile.
+ *
+ * This validates the exact report size and, where the protocol defines them,
+ * the report ID and size header before any fixed-offset field is consumed.
+ *
+ * @return 1 if the report matches the supported profile, 0 otherwise.
+ */
+int validate_parser_report(int vid, int pid, int data_len, const uint8_t *data);
  
 /**
  * @brief Checks if a given VID/PID is in the list of supported controllers.
@@ -79,20 +90,19 @@ int check_allowed(int vid, int pid);
 /* --- Function Prototypes for Specific Parsers --- */
  
 // A generic parser that does nothing, used as a default.
-int prs_generic(int mode, int data_len, uint8_t *data);
+int prs_generic(int mode, int data_len, const uint8_t *data);
  
 // Parser for Logitech F310/F710 in X-Input mode.
-int prs_v046d_pc21d(int mode, int data_len, uint8_t *data);
+int prs_v046d_pc21d(int mode, int data_len, const uint8_t *data);
  
 // Parser for Logitech F310 in D-Input mode.
-int prs_v046d_pc216(int mode, int data_len, uint8_t *data);
+int prs_v046d_pc216(int mode, int data_len, const uint8_t *data);
  
 // Parser for Logitech F710 in D-Input mode.
-int prs_v046d_pc219(int mode, int data_len, uint8_t *data);
+int prs_v046d_pc219(int mode, int data_len, const uint8_t *data);
  
 #ifdef __cplusplus
 } // extern "C"
 #endif
  
 #endif /* PARSER_H_ */
- 

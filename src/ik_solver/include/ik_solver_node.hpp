@@ -14,270 +14,122 @@
  * limitations under the License.
  *
  * @file ik_solver_node.hpp
- * @brief Header for the IK Solver ROS2 node implementing position-based
- *        inverse kinematics for a 5-DOF robotic arm on QNX.
+ * @brief Position-based inverse kinematics for the Baby Robot Arm.
  *
- * This node receives Cartesian velocity commands from the arm controller
- * node, integrates them into a Cartesian position target, and uses the
- * KDL Levenberg-Marquardt (LMA) position IK solver to compute joint
- * angles that reach the target.
- *
- * 5-DOF Handling:
- *     The LMA solver is initialized with a weight matrix [1,1,1,0,0,0]
- *     that prioritizes position (X, Y, Z) over orientation (Roll, Pitch,
- *     Yaw), allowing the solver to freely choose orientation while
- *     accurately reaching the desired position.
- *
- * Cartesian Workspace Limits:
- *     A 3D bounding box defined in meters from the base frame origin
- *     constrains the Cartesian target BEFORE IK solving. This prevents
- *     the solver from receiving unreachable targets and eliminates the
- *     need for post-solve joint limit clamping.
- *
- * Servo Hardware:
- *     - Joints 0-2: DS3218 servos, 270 degree mode [DS3218 Datasheet]
- *     - Joints 3-4: MG90S micro servos, 180 degree mode [MG90S Datasheet]
- *     - Joint 5 (Gripper): Controlled directly by arm controller
- *
- * ROS2 Topics:
- *     Subscriptions:
- *         /CartesianCmd      - Cartesian velocity commands [X, Y, Z, home]
- *         /CurrentPositions  - Joint positions for state synchronization
- *     Publications:
- *         /Mov               - Computed joint angles in radians
- *
- * References:
- *     - Orocos KDL: https://www.orocos.org/wiki/orocos/kdl-wiki
+ * The Cartesian box in this node is an operational command bound, not a
+ * collision-safety system. Joint limits are enforced here as a second layer,
+ * but the actuator controller must always retain its independent calibrated
+ * limits and the physical system still requires an E-stop/fail-off mechanism.
  */
 
 #ifndef IK_SOLVER_NODE_HPP
 #define IK_SOLVER_NODE_HPP
 
-#include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/float64_multi_array.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
+#include "safety_validation.hpp"
+
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include <kdl/chain.hpp>
-#include <kdl/tree.hpp>
-#include <kdl/jntarray.hpp>
-#include <kdl/frames.hpp>
 #include <kdl/chainfksolverpos_recursive.hpp>
 #include <kdl/chainiksolverpos_lma.hpp>
-#include <vector>
-#include <string>
-#include <memory>
+#include <kdl/frames.hpp>
+#include <kdl/jntarray.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <urdf/model.h>
 
-/**
- * @class IKSolverNode
- * @brief ROS2 node that solves position-based inverse kinematics for
- *        a 5-DOF robotic arm using the KDL LMA solver.
- *
- * The node maintains a Cartesian target position that is updated by
- * velocity commands from the arm controller. The LMA solver computes
- * joint angles to reach the target, prioritizing position accuracy
- * over orientation for the under-determined 5-DOF system.
- */
 class IKSolverNode : public rclcpp::Node
 {
 public:
-    /**
-     * @brief Constructs the IKSolverNode.
-     *
-     * Initialization sequence:
-     *     1. Declare and load ROS2 parameters
-     *     2. Load Cartesian workspace limits
-     *     3. Find URDF file from URDF_PATH environment variable
-     *     4. Load URDF and construct KDL kinematic chain
-     *     5. Initialize FK and IK solvers with position-priority weighting
-     *     6. Compute initial Cartesian target from FK at home position
-     *     7. Set up ROS2 subscriptions and publishers
-     */
-    IKSolverNode();
+  IKSolverNode();
 
 private:
-    // ======================================================================
-    // URDF Loading and Configuration
-    // ======================================================================
+  // Configuration and model loading.
+  bool load_and_validate_parameters();
+  std::string find_URDF(const std::string & filename);
+  bool read_URDF_file(const std::string & path, std::string & xml) const;
+  bool load_URDF();
+  bool validate_model(const urdf::Model & model);
+  void extract_joint_names();
+  bool extract_joint_limits(const urdf::Model & model);
+  bool init_solvers();
 
-    /**
-     * @brief Searches for the URDF file in the URDF_PATH directory.
-     *
-     * @param filename Name of the URDF file to find (e.g. "arm5dof.urdf").
-     * @return Full path to the URDF file, or empty string if not found.
-     */
-    std::string find_URDF(const std::string &filename);
+  // Safety validation.
+  bool clamp_cartesian_target(KDL::Frame & target);
+  bool frame_within_cartesian_bounds(const KDL::Frame & frame) const;
+  bool validate_joint_solution(
+    const KDL::JntArray & solution, bool enforce_step, std::string & reason) const;
+  bool frame_is_finite(const KDL::Frame & frame) const;
+  bool command_is_well_formed(
+    const std_msgs::msg::Float64MultiArray & msg, bool & home_pressed,
+    std::uint64_t & session_epoch) const;
+  void advance_home_position();
+  [[noreturn]] void fail_active_control(const std::string & reason) const;
 
-    /**
-     * @brief Loads the URDF file and constructs the KDL kinematic chain.
-     *
-     * Parses URDF XML into a KDL tree, extracts the kinematic chain
-     * from base_link to end_effector_link, and collects movable joint names.
-     *
-     * @return true if URDF loaded and chain extracted successfully.
-     */
-    bool load_URDF();
+  // ROS callbacks and publishing.
+  void current_positions_callback(
+    const std_msgs::msg::Float64MultiArray::SharedPtr msg);
+  void cartesian_callback(
+    const std_msgs::msg::Float64MultiArray::SharedPtr msg);
+  void publish_joint_command(const KDL::JntArray & joint_angles);
 
-    /**
-     * @brief Extracts movable joint names from the KDL chain.
-     *
-     * Skips fixed joints (KDL::Joint::None) such as the world_to_base joint.
-     */
-    void extract_joint_names();
+  // Timing. A steady clock and fixed integration period prevent wall/ROS
+  // clock changes and input frequency from changing commanded speed.
+  std::chrono::steady_clock::time_point last_solve_time_;
+  double update_rate_hz_ = 50.0;
+  double nominal_period_sec_ = 0.02;
+  double max_command_interval_sec_ = 0.25;
 
-    // ======================================================================
-    // Solver Initialization
-    // ======================================================================
+  // ROS communication. Topic names are relative so namespaces and SROS2
+  // enclave policies can isolate individual robots.
+  rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_command_publisher_;
+  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
+    cartesian_subscription_;
+  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr pos_subscription_;
 
-    /**
-     * @brief Initializes FK and position IK solvers.
-     *
-     * Creates ChainFkSolverPos_recursive and ChainIkSolverPos_LMA with
-     * position-priority weight matrix [1,1,1,0,0,0] for 5-DOF handling.
-     * Computes initial Cartesian target from FK at home position.
-     *
-     * @return true if both solvers initialized successfully.
-     */
-    bool init_solvers();
+  // URDF and KDL.
+  std::string urdf_file_;
+  std::string urdf_xml_;
+  std::string base_link_;
+  std::string end_effector_link_;
+  KDL::Chain kdl_chain_;
+  std::vector<std::string> joint_names_;
+  const std::vector<std::string> expected_joint_names_{
+    "base", "shoulder", "elbow", "wrist", "hand"};
+  std::size_t expected_joint_count_ = 5U;
+  unsigned int num_joints_ = 0U;
 
-    // ======================================================================
-    // Cartesian Workspace Limits
-    // ======================================================================
+  // Cartesian workspace limits (meters in the base frame).
+  double cart_x_min_ = -0.25;
+  double cart_x_max_ = 0.25;
+  double cart_y_min_ = -0.25;
+  double cart_y_max_ = 0.25;
+  double cart_z_min_ = 0.05;
+  double cart_z_max_ = 0.35;
 
-    /**
-     * @brief Clamps the Cartesian target to the defined workspace box.
-     *
-     * Called BEFORE IK solving so the solver only receives targets
-     * within the safe workspace. Replaces joint limit clamping.
-     *
-     * @param target The Cartesian target frame to clamp.
-     * @return true if any axis was clamped.
-     */
-    bool clamp_cartesian_target(KDL::Frame &target);
+  // State and solver-enforced joint limits.
+  KDL::JntArray current_joint_positions_;
+  KDL::JntArray joint_lower_limits_;
+  KDL::JntArray joint_upper_limits_;
+  KDL::Frame cartesian_target_;
+  bool target_initialized_ = false;
+  ik_solver::safety::SessionEpochGate session_epoch_gate_;
+  double max_joint_step_rad_ = 0.10;
 
-    // ======================================================================
-    // ROS2 Callbacks
-    // ======================================================================
+  std::unique_ptr<KDL::ChainFkSolverPos_recursive> fk_solver_;
+  std::unique_ptr<KDL::ChainIkSolverPos_LMA> ik_pos_solver_;
 
-    /**
-     * @brief Receives current joint positions from the arm controller
-     *        for state synchronization.
-     *
-     * Processes position data (flag 0.0) by updating current_joint_positions_
-     * and resyncing cartesian_target_ via FK.
-     *
-     * @param msg Float64MultiArray with joint data and flag.
-     */
-    void current_positions_callback(
-        const std_msgs::msg::Float64MultiArray::SharedPtr msg);
+  double velocity_scale_ = 0.10;
 
-    /**
-     * @brief Main IK solving callback triggered by Cartesian velocity commands.
-     *
-     * Integrates velocity into Cartesian target, clamps to workspace,
-     * solves IK, and publishes joint angles on success. Rolls back
-     * Cartesian target on solve failure.
-     *
-     * @param msg Float64MultiArray [X_vel, Y_vel, Z_vel, home_flag].
-     */
-    void cartesian_callback(
-        const std_msgs::msg::Float64MultiArray::SharedPtr msg);
-
-    // ======================================================================
-    // Publishing
-    // ======================================================================
-
-    /**
-     * @brief Publishes computed joint angles to the /Mov topic.
-     *
-     * @param joint_angles KDL JntArray with solved joint angles in radians.
-     */
-    void publish_joint_command(const KDL::JntArray &joint_angles);
-
-    // ======================================================================
-    // Member Variables
-    // ======================================================================
-
-    // --- Timing ---
-
-    /// @brief Timestamp of last Cartesian command for dt calculation.
-    double last_update_time_ = 0.0;
-
-    // --- ROS2 Communication ---
-
-    /// @brief Publisher for computed joint angles to /Mov topic.
-    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr
-        joint_command_publisher_ = nullptr;
-
-    /// @brief Subscription for Cartesian velocity commands.
-    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
-        cartesian_subscription_ = nullptr;
-
-    /// @brief Subscription for current positions from arm controller.
-    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
-        pos_subscription_ = nullptr;
-
-    // --- URDF and KDL ---
-
-    /// @brief Full path to the URDF file.
-    std::string urdf_file_;
-
-    /// @brief Root link name in kinematic chain.
-    std::string base_link_;
-
-    /// @brief End effector link name in kinematic chain.
-    std::string end_effector_link_;
-
-    /// @brief KDL kinematic chain from base to end effector.
-    KDL::Chain kdl_chain_;
-
-    /// @brief Names of movable joints from KDL chain.
-    std::vector<std::string> joint_names_;
-
-    /// @brief Number of movable joints (5 for this arm).
-    unsigned int num_joints_;
-
-    // --- Cartesian Workspace Limits ---
-
-    /// @brief Minimum X coordinate in meters from base frame.
-    double cart_x_min_ = -0.25;
-
-    /// @brief Maximum X coordinate in meters from base frame.
-    double cart_x_max_ = 0.25;
-
-    /// @brief Minimum Y coordinate in meters from base frame.
-    double cart_y_min_ = -0.25;
-
-    /// @brief Maximum Y coordinate in meters from base frame.
-    double cart_y_max_ = 0.25;
-
-    /// @brief Minimum Z coordinate in meters from base frame.
-    double cart_z_min_ = 0.05;
-
-    /// @brief Maximum Z coordinate in meters from base frame.
-    double cart_z_max_ = 0.35;
-
-    // --- Solver State ---
-
-    /// @brief Current joint angles used as initial guess for IK solver.
-    KDL::JntArray current_joint_positions_;
-
-    /// @brief Target Cartesian pose updated by velocity commands.
-    KDL::Frame cartesian_target_;
-
-    /// @brief Flag indicating solvers are initialized and target is valid.
-    bool target_initialized_ = false;
-
-    // --- Solvers ---
-
-    /// @brief FK solver: joint angles to Cartesian position.
-    std::unique_ptr<KDL::ChainFkSolverPos_recursive> fk_solver_;
-
-    /// @brief Position IK solver with 5-DOF position-priority weighting.
-    std::unique_ptr<KDL::ChainIkSolverPos_LMA> ik_pos_solver_;
-
-    // --- Configuration ---
-
-    /// @brief Cartesian velocity scale factor (m/s per unit).
-    double velocity_scale_ = 0.01;
+  static constexpr std::size_t kMaxUrdfBytes = 1024U * 1024U;
+  static constexpr double kMaxCartesianCommand = 1.0;
+  static constexpr double kFlagTolerance = 1.0e-9;
 };
 
-#endif 
+#endif  // IK_SOLVER_NODE_HPP

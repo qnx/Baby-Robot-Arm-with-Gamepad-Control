@@ -18,18 +18,22 @@ project(arm_controller)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_python REQUIRED)
-find_package(rclpy REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
 
 install(PROGRAMS
         src/arm_controller_node.py
+        DESTINATION lib/${PROJECT_NAME})
+
+install(FILES
         src/arm_control.py
         src/arm_controller_input.py
         src/PCA9685.py
+        src/safety.py
         DESTINATION lib/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+    find_package(ament_cmake_pytest REQUIRED)
+    ament_add_pytest_test(arm_controller_safety_tests test)
+endif()
 
 # Install launch files, if needed
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/launch)

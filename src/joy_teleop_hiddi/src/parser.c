@@ -3,8 +3,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may
- * may obtain a copy of the License at
+ * You may obtain a copy of the License at
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -32,6 +31,22 @@ extern int verbose;
  
 // Defines the total number of supported controller models in the lookup table.
 #define CONTROLLER_COUNT 4
+#define XINPUT_REPORT_LENGTH 20
+#define F310_DINPUT_REPORT_LENGTH 8
+#define F710_DINPUT_REPORT_LENGTH 7
+
+enum report_format {
+    REPORT_FORMAT_XINPUT,
+    REPORT_FORMAT_DIRECTINPUT
+};
+
+struct device_parser_profile {
+    int vid;
+    int pid;
+    int report_len;
+    enum report_format format;
+    parser_func_t parser;
+};
  
 /**
  * @brief A lookup table mapping controller Vendor IDs (VID) and Product IDs (PID)
@@ -40,12 +55,46 @@ extern int verbose;
  * This array allows the system to dynamically select the correct parser at
  * runtime when a new controller is connected.
  */
-const struct _device_lookup_storage _device_lookup[CONTROLLER_COUNT] = {
-    {0x046d, 0xc21d, prs_v046d_pc21d}, // Logitech F310/F710 (X-Input mode)
-    {0x046d, 0xc216, prs_v046d_pc216}, // Logitech F310 (D-Input mode)
-    {0x046d, 0xc21f, prs_v046d_pc21d}, // Logitech F710 (Wireless, X-Input mode)
-    {0x046d, 0xc219, prs_v046d_pc219}  // Logitech F710 (Wireless, D-Input mode)
+static const struct device_parser_profile device_lookup[CONTROLLER_COUNT] = {
+    /* XUSB default input report 0x00 is 20 bytes. The DirectInput HIDDI
+     * payloads have no report-ID prefix and retain their profile-specific
+     * trailing bytes, hence exact lengths 8 (F310) and 7 (F710). */
+    {0x046d, 0xc21d, XINPUT_REPORT_LENGTH, REPORT_FORMAT_XINPUT, prs_v046d_pc21d},
+    {0x046d, 0xc216, F310_DINPUT_REPORT_LENGTH, REPORT_FORMAT_DIRECTINPUT, prs_v046d_pc216},
+    {0x046d, 0xc21f, XINPUT_REPORT_LENGTH, REPORT_FORMAT_XINPUT, prs_v046d_pc21d},
+    {0x046d, 0xc219, F710_DINPUT_REPORT_LENGTH, REPORT_FORMAT_DIRECTINPUT, prs_v046d_pc219}
 };
+
+static const struct device_parser_profile *find_profile(int vid, int pid) {
+    for (int i = 0; i < CONTROLLER_COUNT; i++) {
+        if (device_lookup[i].vid == vid && device_lookup[i].pid == pid) {
+            return &device_lookup[i];
+        }
+    }
+    return NULL;
+}
+
+static int validate_xinput_report(int data_len, const uint8_t *data) {
+    /* MS-XUSBI report 0x00 is exactly 20 bytes and declares size 0x14.
+     * Bytes 14..19 cannot affect commands and are deliberately ignored until
+     * their values are confirmed on the deployed Logitech/QNX combination. */
+    if (data == NULL || data_len != XINPUT_REPORT_LENGTH ||
+        data[0] != 0x00u || data[1] != XINPUT_REPORT_LENGTH) {
+        return 0;
+    }
+
+    /* Adjacent directions are valid diagonals; opposing directions indicate
+     * a malformed frame and must not be resolved into a motion command. */
+    const uint8_t dpad = data[2] & 0x0fu;
+    return (dpad & 0x03u) != 0x03u && (dpad & 0x0cu) != 0x0cu;
+}
+
+static int validate_dinput_report(int expected_length, int data_len, const uint8_t *data) {
+    /* These no-ID profiles define hat values 0..7 and neutral 8. Treating an
+     * out-of-range nibble as neutral could turn a malformed frame into input. */
+    return data != NULL && data_len == expected_length &&
+        (data[4] & 0x0fu) <= 8u;
+}
  
 /**
  * @brief Retrieves the correct parser function for a given device VID and PID.
@@ -56,14 +105,29 @@ const struct _device_lookup_storage _device_lookup[CONTROLLER_COUNT] = {
  * it returns a pointer to a generic, non-functional parser.
  */
 parser_func_t get_parser(int vid, int pid) {
-    for (int i = 0; i < CONTROLLER_COUNT; i++) {
-        if (_device_lookup[i].vid == vid && _device_lookup[i].pid == pid) {
-            return _device_lookup[i].parser;
-        }
-    }
-    return prs_generic; // Return a safe default if the controller is unknown.
+    const struct device_parser_profile *profile = find_profile(vid, pid);
+    return profile != NULL ? profile->parser : prs_generic;
 }
- 
+
+int get_parser_report_length(int vid, int pid) {
+    const struct device_parser_profile *profile = find_profile(vid, pid);
+    return profile != NULL ? profile->report_len : -1;
+}
+
+int validate_parser_report(int vid, int pid, int data_len, const uint8_t *data) {
+    const struct device_parser_profile *profile = find_profile(vid, pid);
+    if (profile == NULL || data == NULL || data_len != profile->report_len) {
+        return 0;
+    }
+
+    /* DirectInput has no leading report ID in these tested profiles: byte 0
+     * is left-stick X. Exact length and the hat's logical range identify the
+     * layouts without misclassifying axis data as a report header. */
+    return profile->format == REPORT_FORMAT_XINPUT
+        ? validate_xinput_report(data_len, data)
+        : validate_dinput_report(profile->report_len, data_len, data);
+}
+
 /**
  * @brief Checks if a controller with the given VID and PID is supported.
  *
@@ -72,35 +136,51 @@ parser_func_t get_parser(int vid, int pid) {
  * @return 1 if the controller is supported, -1 otherwise.
  */
 int check_allowed(int vid, int pid) {
-    for (int i = 0; i < CONTROLLER_COUNT; i++) {
-        if (_device_lookup[i].vid == vid && _device_lookup[i].pid == pid) {
-            return 1; // Found a match.
-        }
-    }
-    return -1; // No match found.
+    return find_profile(vid, pid) != NULL ? 1 : -1;
 }
  
 /**
  * @brief A generic, default parser that does nothing.
  * @return Always returns 0.
  */
-int prs_generic(int mode, int data_len, uint8_t *data) {
+int prs_generic(int mode, int data_len, const uint8_t *data) {
+    (void)mode;
+    (void)data_len;
+    (void)data;
     return 0;
+}
+
+/**
+ * @brief Decodes an XInput signed 16-bit value from its little-endian bytes.
+ *
+ * Convert through int rather than relying on an implementation-defined
+ * unsigned-to-signed narrowing conversion for values above INT16_MAX.
+ */
+static int _parse_le_i16(const uint8_t *data) {
+    uint16_t raw = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
+    return (raw & 0x8000u) ? (int)raw - 0x10000 : (int)raw;
+}
+
+static int _parse_inverted_le_i16(const uint8_t *data) {
+    const int value = _parse_le_i16(data);
+    /* XInput defines positive Y as up; DirectInput reports up at the low end.
+     * Saturation avoids producing an out-of-profile +32768 for -32768. */
+    return value == -32768 ? 32767 : -value;
 }
  
 /**
  * @brief Parser for Logitech controllers in X-Input mode (VID 0x046d, PID 0xc21d/0xc21f).
  *
- * This function decodes the 14-byte data packet sent by the controller
- * in X-Input mode.
+ * This function decodes the 20-byte default controller input report (ID 0x00)
+ * sent by the controller in X-Input mode.
  *
  * @param mode The type of data to extract (e.g., PARSER_MODE_BUTTON).
  * @param data_len The length of the raw data buffer.
  * @param data Pointer to the raw HID data buffer.
  * @return The parsed integer value (button bitmask or analog axis value).
  */
-int prs_v046d_pc21d(int mode, int data_len, uint8_t *data) {
-    if (data_len < 14) return 0; // Safety check for data length.
+int prs_v046d_pc21d(int mode, int data_len, const uint8_t *data) {
+    if (!validate_xinput_report(data_len, data)) return 0;
  
     switch (mode) {
         case PARSER_MODE_BUTTON: {
@@ -112,8 +192,8 @@ int prs_v046d_pc21d(int mode, int data_len, uint8_t *data) {
             button |= (SCREEN_DPAD_RIGHT_GAME_BUTTON * ((data[2] & 0x08) ? 1 : 0));
             button |= (SCREEN_MENU2_GAME_BUTTON * ((data[2] & 0x10) ? 1 : 0)); // START button
             button |= (SCREEN_MENU1_GAME_BUTTON * ((data[2] & 0x20) ? 1 : 0)); // BACK button
-            button |= (SCREEN_R3_GAME_BUTTON * ((data[2] & 0x40) ? 1 : 0)); // Right stick click
-            button |= (SCREEN_L3_GAME_BUTTON * ((data[2] & 0x80) ? 1 : 0)); // Left stick click
+            button |= (SCREEN_L3_GAME_BUTTON * ((data[2] & 0x40) ? 1 : 0)); // Left stick click
+            button |= (SCREEN_R3_GAME_BUTTON * ((data[2] & 0x80) ? 1 : 0)); // Right stick click
             button |= (SCREEN_L1_GAME_BUTTON * ((data[3] & 0x01) ? 1 : 0)); // LB
             button |= (SCREEN_R1_GAME_BUTTON * ((data[3] & 0x02) ? 1 : 0)); // RB
             button |= (SCREEN_A_GAME_BUTTON * ((data[3] & 0x10) ? 1 : 0));
@@ -126,11 +206,11 @@ int prs_v046d_pc21d(int mode, int data_len, uint8_t *data) {
             button |= (data[5] > 20 ? SCREEN_R2_GAME_BUTTON : 0);
             return button;
         }
-        // Analog sticks are 16-bit signed values. Combine two bytes and center the value around 0.
-        case PARSER_MODE_ANALOG1x: return (data[6] * 0x100) + data[7] - 32768;
-        case PARSER_MODE_ANALOG1y: return ((data[8] * 0x100) + data[9] - 32768) * -1;
-        case PARSER_MODE_ANALOG2x: return (data[10] * 0x100) + data[11] - 32768;
-        case PARSER_MODE_ANALOG2y: return ((data[12] * 0x100) + data[13] - 32768) * -1;
+        // XInput axes are signed little-endian; normalize Y to the DInput physical direction.
+        case PARSER_MODE_ANALOG1x: return _parse_le_i16(&data[6]);
+        case PARSER_MODE_ANALOG1y: return _parse_inverted_le_i16(&data[8]);
+        case PARSER_MODE_ANALOG2x: return _parse_le_i16(&data[10]);
+        case PARSER_MODE_ANALOG2y: return _parse_inverted_le_i16(&data[12]);
     }
     return 0;
 }
@@ -141,7 +221,7 @@ int prs_v046d_pc21d(int mode, int data_len, uint8_t *data) {
  * This function is marked 'static' as it's only intended for use within this file.
  * It centralizes the parsing logic for both F310 and F710 D-Input modes.
  */
-static int _parse_d_mode_data(int mode, uint8_t *data) {
+static int _parse_d_mode_data(int mode, const uint8_t *data) {
     switch (mode) {
         case PARSER_MODE_BUTTON: {
             uint32_t buttons = 0;
@@ -185,20 +265,17 @@ static int _parse_d_mode_data(int mode, uint8_t *data) {
 /**
  * @brief Parser for the Logitech F310 controller in D-Input mode (8-byte report).
  */
-int prs_v046d_pc216(int mode, int data_len, uint8_t *data) {
-    if (data_len < 8) return 0;
-    // This function is just a wrapper that performs a length check before
-    // calling the common helper function.
+int prs_v046d_pc216(int mode, int data_len, const uint8_t *data) {
+    if (!validate_dinput_report(F310_DINPUT_REPORT_LENGTH, data_len, data)) return 0;
+    // Exact length prevents a composite report prefix from being parsed.
     return _parse_d_mode_data(mode, data);
 }
  
 /**
  * @brief Parser for the Logitech F710 controller in D-Input mode (7-byte report).
  */
-int prs_v046d_pc219(int mode, int data_len, uint8_t *data) {
-    if (data_len < 7) return 0;
-    // This function is also a wrapper with a different length check,
-    // calling the same common helper function.
+int prs_v046d_pc219(int mode, int data_len, const uint8_t *data) {
+    if (!validate_dinput_report(F710_DINPUT_REPORT_LENGTH, data_len, data)) return 0;
+    // Exact length prevents a composite report prefix from being parsed.
     return _parse_d_mode_data(mode, data);
 }
- 

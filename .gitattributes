@@ -1,0 +1,3 @@
+# Preserve the verified upstream bytes and keep the minified vendor bundle out
+# of review/language statistics; its SHA-256 is recorded in the HTML loader.
+docs/vendor/mermaid-11.4.1.min.js -diff linguist-vendored=true

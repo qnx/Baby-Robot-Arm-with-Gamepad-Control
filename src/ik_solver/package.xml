@@ -9,12 +9,17 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <build_depend>rclcpp</build_depend>
+  <build_depend>rcl_interfaces</build_depend>
+  <build_depend>ament_index_cpp</build_depend>
+  <build_depend>eigen</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>kdl_parser</build_depend>
   <build_depend>orocos_kdl</build_depend>
   <build_depend>urdf</build_depend>
   <build_depend>std_msgs</build_depend>
   <exec_depend>rclcpp</exec_depend>
+  <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>ament_index_cpp</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>kdl_parser</exec_depend>
   <exec_depend>orocos_kdl</exec_depend>
