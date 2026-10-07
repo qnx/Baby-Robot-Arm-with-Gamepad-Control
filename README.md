@@ -206,6 +206,7 @@ Global Controls use a modifier in order to make it harder to accidentally press.
 * `A` -> Joystick (default)
 * `B` -> Inverse Kinematic
 * `X` -> Direct Joint (not currently supported)
+* `Y` -> IK with Direct Joint (not currently supported)
 
 `START`: (Select Screen saver dance)
 * `A` -> Figure Eight

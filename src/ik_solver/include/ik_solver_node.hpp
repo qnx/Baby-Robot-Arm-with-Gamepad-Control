@@ -42,9 +42,10 @@
  * ROS2 Topics:
  *     Subscriptions:
  *         /CartesianCmd      - Cartesian velocity commands [X, Y, Z, home]
+ *         /TargetPositions   - Absolute Cartesian target position [X, Y, Z]
  *         /CurrentPositions  - Joint positions for state synchronization
  *     Publications:
- *         /Mov               - Computed joint angles in radians
+ *         /mov               - Computed joint angles in radians
  *
  * References:
  *     - Orocos KDL: https://www.orocos.org/wiki/orocos/kdl-wiki
@@ -54,6 +55,7 @@
 #define IK_SOLVER_NODE_HPP
 
 #include <rclcpp/rclcpp.hpp>
+#include <geometry_msgs/msg/point.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <kdl/chain.hpp>
@@ -181,12 +183,24 @@ private:
     void cartesian_callback(
         const std_msgs::msg::Float64MultiArray::SharedPtr msg);
 
+    /**
+     * @brief Solves IK for an absolute Cartesian end-effector position.
+     *
+     * The requested coordinates are expressed in metres in the configured
+     * base frame. The target is clamped to the Cartesian workspace before
+     * solving, and the resulting joint angles are published on /mov.
+     *
+     * @param msg Absolute target position [X, Y, Z].
+     */
+    void target_positions_callback(
+        const geometry_msgs::msg::Point::SharedPtr msg);
+
     // ======================================================================
     // Publishing
     // ======================================================================
 
     /**
-     * @brief Publishes computed joint angles to the /Mov topic.
+     * @brief Publishes computed joint angles to the /mov topic.
      *
      * @param joint_angles KDL JntArray with solved joint angles in radians.
      */
@@ -203,13 +217,17 @@ private:
 
     // --- ROS2 Communication ---
 
-    /// @brief Publisher for computed joint angles to /Mov topic.
+    /// @brief Publisher for computed joint angles to /mov topic.
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr
         joint_command_publisher_ = nullptr;
 
     /// @brief Subscription for Cartesian velocity commands.
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
         cartesian_subscription_ = nullptr;
+
+    /// @brief Subscription for absolute Cartesian end-effector positions.
+    rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr
+        target_positions_subscription_ = nullptr;
 
     /// @brief Subscription for current positions from arm controller.
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
@@ -280,4 +298,4 @@ private:
     double velocity_scale_ = 0.01;
 };
 
-#endif 
+#endif
