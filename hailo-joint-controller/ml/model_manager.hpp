@@ -22,8 +22,6 @@
 namespace joint::ml {
 
 
-// TODO(lmilne) right now this is just a workaround for only being able to have one vdevice but really it should
-// be able to take an hef and do magic.
 
 /** Singleton class holding the halio device an model info */
 class HailoModelManager {

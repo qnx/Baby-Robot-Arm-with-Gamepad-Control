@@ -26,7 +26,7 @@ HailoJointController::~HailoJointController() {
 }
 
 int HailoJointController::init() {
-    cam_ = std::make_unique<RpiCam>(cfg_.camera_unit, cfg_.camera_data_unit);
+    cam_ = std::make_unique<RpiCam>(cfg_.camera_unit);
     int res = cam_->init();
     if (res != EOK) {
         spdlog::error("Failed to initialize camera");

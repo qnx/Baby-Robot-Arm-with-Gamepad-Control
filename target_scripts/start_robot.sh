@@ -64,9 +64,9 @@ CART_MIN_LIMITS="[-0.16,  0.11, -0.145]"
 CART_MAX_LIMITS="[ 0.16,  0.31, -0.03]"
 
 # Default mode [joystick, joint, ik_joystick, ik_joint]
-ROBOT_MODE="ik_joint"
+ROBOT_MODE="joystick"
 CAMERA_UNIT=1 # Default to camera unit 1 if not specified
-RUN_HAND=true
+RUN_HAND=false
 RUN_POSE=false
 
 while [ "$#" -gt 0 ]; do
@@ -96,12 +96,12 @@ while [ "$#" -gt 0 ]; do
             ;;
         --hand)
             RUN_HAND=true
-            RUN_POSE=false
+            ROBOT_MODE="ik_joint"
             shift
             ;;
         --pose)
-            RUN_HAND=false
             RUN_POSE=true
+            ROBOT_MODE="joint"
             shift
             ;;
         --help)
@@ -124,7 +124,7 @@ done
 # On exit we need to manually kill qpp and playback-connector
 # unlike ros2 node they are not catching the ctrl+c of the parent
 cleanup() {
-    sudo slay qpp playback-connector handlandmark_task physical-ai-ui
+    slay qpp playback-connector handlandmark_task physical-ai-ui
 }
 
 start_ros() {
@@ -190,6 +190,14 @@ start_ros() {
             -p cart_min_limits:="${CART_MIN_LIMITS}" \
             -p cart_max_limits:="${CART_MAX_LIMITS}" &
     fi
+
+    if ${RUN_POSE}; then
+        ros2 run mode_publisher mode_publisher_node \
+            --ros-args \
+            -p qpp_path:=/dev/qpp/physicalai/bra/ &
+
+        ros2 run hailo_joint_publisher hailo_joint_publisher &
+    fi
 }
 
 trap cleanup EXIT
@@ -197,7 +205,7 @@ trap cleanup EXIT
 if ${RUN_HAND}; then
     echo "Starting QPP"
     if ! [ -d /dev/qpp ]; then
-        sudo qpp -c "${SCRIPT_DIR}/../etc/physical-ai_v1.json" &
+        qpp -c "${SCRIPT_DIR}/../etc/physical-ai_v1.json" &
         waitfor /dev/qpp
 
         playback-connector -s /dev/qpp &
@@ -226,7 +234,15 @@ fi
 start_ros &
 
 # Start up the UI
-../physical-ai-ui/physical-ai-ui --camera-unit="${CAMERA_UNIT}" --show-video-flip &
+if ${RUN_POSE}; then
+    #TODO: Add Hailo demo run command here once it is available
+    echo "Pose detection is not yet implemented."
+    exit 1
+
+    POSE_MODEL=${SCRIPT_DIR}/../vit_pose_small.hef
+    "${SCRIPT_DIR}/../hailo-joint-controller/hailo-joint-controller" ${POSE_MODEL} --cam-id="${CAMERA_UNIT}" &
+fi
+"${SCRIPT_DIR}/../physical-ai-ui/physical-ai-ui" --camera-unit="${CAMERA_UNIT}" --show-video-flip &
 
 # --- Wait for all background nodes to exit ---
 echo "All nodes started. Press Ctrl+C in this terminal to stop both."

@@ -92,7 +92,6 @@ class HailoJointController {
     // Pose info
     std::vector<PoseInfo> get_poses();
 
-    // TODO I think we should move this to PoseSelection
     /**
      * @brief Get info about the currently selected pose.
      *

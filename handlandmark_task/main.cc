@@ -33,7 +33,7 @@
 ABSL_FLAG(long, camera_unit, (long)-1,
           "The camera unit to open."
           "Set in a .conf file passed to sensor's -c argument at boot.");
-ABSL_FLAG(uint32_t, num_hands, 2, "Number of hands to detect.");
+ABSL_FLAG(uint32_t, num_hands, 1, "Number of hands to detect.");
 ABSL_FLAG(std::string, qpp_path, "/dev/qpp", "Path to QPP.");
 ABSL_FLAG(
     std::string, model_path,
@@ -115,7 +115,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // TODO change to a sigwait()
   signal(SIGINT, on_signal);
   signal(SIGTERM, on_signal);
   ABSL_LOG(INFO) << "Running, ctrl-c to stop.";

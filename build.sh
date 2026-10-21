@@ -70,10 +70,21 @@ fi
 
 if $BUILD_POSE; then
     ROS2_PKGS="${ROS2_PKGS} mode_publisher hailo-joint-publisher"
-    echo "Not yet supported"
-    # TODO build hailo-joint-controller
+    echo "--pose is not yet supported. Coming soon :)"
     # This is disabled as we aren't able to build until the hailort apk is created.
+
     exit 1
+
+    MODEL=vit_pose_small.hef
+    if ! [ -f ${MODEL} ];then
+        curl -O "https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/ModelZoo/Compiled/v2.11.0/hailo8l/${MODEL}"
+    fi
+
+    pushd hailo-joint-controller
+    mkdir -p build && cd build
+    cmake ..
+    make -j4
+    popd
 fi
 
 # build UI

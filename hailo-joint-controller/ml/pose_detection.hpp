@@ -53,7 +53,7 @@ class PoseDetection {
 
    public:
     PoseDetection(float joint_conf_threshold = 0.3);
-    ~PoseDetection();
+    virtual ~PoseDetection();
 
     /**
      * @brief Setup Hailo and pose model

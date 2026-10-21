@@ -204,9 +204,6 @@ int QPPReader::write_value(const std::string &value_name, QPPTypeInfo type_info,
     return fd;
   }
 
-  // TODO(lmilne) log the value that is being written as well
-  // Rate limited: callers write per video frame, which would otherwise put
-  // dozens of identical lines per second on stderr.
   ABSL_LOG_EVERY_N_SEC(INFO, 10) << "Writing value to " << value_name
                  << ((type_info.is_ctrl) ? "?control" : "");
 

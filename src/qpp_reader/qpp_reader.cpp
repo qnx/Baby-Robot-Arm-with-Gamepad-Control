@@ -202,7 +202,6 @@ int QPPReader::write_value(const std::string &value_name, QPPTypeInfo type_info,
     return fd;
   }
 
-  // TODO(lmilne) log the value that is being written as well
   RCLCPP_INFO_STREAM(logger_, "Writing value to "
                                   << value_name
                                   << ((type_info.is_ctrl) ? "?control" : ""));

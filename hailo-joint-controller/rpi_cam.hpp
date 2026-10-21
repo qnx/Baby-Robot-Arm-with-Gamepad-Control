@@ -77,7 +77,6 @@ class RpiCam {
    private:
     FrameCb cb_{};
     camera_unit_t id_{};
-    std::optional<sensor_interim_data_unit_t> data_id_;
 
     // Camera info
     camera_handle_t handle_ = CAMERA_HANDLE_INVALID;

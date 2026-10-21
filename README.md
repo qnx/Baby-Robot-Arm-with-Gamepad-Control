@@ -18,6 +18,8 @@ The project uses the [Arduino-based Robot Arm Model](https://cults3d.com/en/3d-m
 - [Robot Arm with Gamepad Control for QNX](#robot-arm-with-gamepad-control-for-qnx)
   - [Table of Contents](#table-of-contents)
   - [Overview](#overview)
+    - [Mediapipe hand landmark with inverse kinematics](#mediapipe-hand-landmark-with-inverse-kinematics)
+    - [Hailo VitPose pose detection](#hailo-vitpose-pose-detection)
   - [Key Features](#key-features)
   - [Hardware Setup](#hardware-setup)
     - [1. I²C Communication Wiring (Pi to PCA9685)](#1-ic-communication-wiring-pi-to-pca9685)
@@ -26,6 +28,8 @@ The project uses the [Arduino-based Robot Arm Model](https://cults3d.com/en/3d-m
   - [Software Requirements](#software-requirements)
   - [How to Build](#how-to-build)
   - [How to Run the Demo](#how-to-run-the-demo)
+    - [Running MediaPipe Demo](#running-mediapipe-demo)
+    - [Running Hailo Pose Detection Demo](#running-hailo-pose-detection-demo)
   - [Configuration \& Tuning](#configuration--tuning)
     - [Manual Calibration](#manual-calibration)
     - [Setting Safe Workspace Limits (`start_robot.sh`)](#setting-safe-workspace-limits-start_robotsh)
@@ -36,6 +40,8 @@ The project uses the [Arduino-based Robot Arm Model](https://cults3d.com/en/3d-m
     - [Global Controls](#global-controls)
     - [Joystick mode Controls](#joystick-mode-controls)
     - [Inverse Kinematic controls](#inverse-kinematic-controls)
+    - [Pose Detection controls](#pose-detection-controls)
+    - [Hand Landmark Mode](#hand-landmark-mode)
   - [References](#references)
   - [Acknowledgments](#acknowledgments)
 
@@ -43,7 +49,7 @@ The project uses the [Arduino-based Robot Arm Model](https://cults3d.com/en/3d-m
 
 ## Overview
 
-This project provides a demo for teleoperating a 5-DOF robotic arm. It consists of two primary ROS2 nodes:
+This project provides a demo for teleoperating a 5-DOF robotic arm. It consists of three primary ROS2 nodes:
 1. **joy_teleop_hiddi (C++):** A high-performance node that interfaces directly with the QNX HIDDI service to read raw data from a connected gamepad. It parses this data and publishes it as standard `/joy` messages.
 2. **ik_solver (C++):** An inverse kinematics solver node using the Orocos
 KDL library's Levenberg-Marquardt (LMA) position solver. It receives
@@ -57,6 +63,21 @@ direct control and `/Mov` messages for IK-computed joint angles. It
 converts all commands to PWM signals and sends them to the servos via a
 PCA9685 I²C servo driver at 50Hz with exponential smoothing.
 
+The project also includes 2 extended version of the demo which use ML to allow you to control the robot with your hand or pose.
+
+### Mediapipe hand landmark with inverse kinematics
+![Picture of the Robotic Arm with ping pong balls with MediaPipe](./docs/QNX-Robot-Arm-MediaPipe.jpg)
+
+1. **handlandmark_task (MediaPipe C++):** Mediapipe hand landmark and gesture reconditions task which reads data and writes to QNX Posix Publish Subscribe (QPP).
+2. **landmark_publisher (C++):** Ros2 Service which reads hand landmark information for QPP and publishes target positions to the IK_node to move the robot based on arm position. It also uses gestures with Joint State messages to control the tilt as well as opening and closing of the end effector.
+3. **Mode publisher (C++)**: Ros2 Node which listens for /mode and writes it to QPP to enabled and disable the ML.
+
+### Hailo VitPose pose detection
+![Picture of the Robotic Arm with ping pong balls with Hailo](./docs/QNX-Robot-Arm-Hailo.png)
+
+1. **hailo-joint-controller (HailoRT C++):** Uses HailoRT with VitPose model for single person pose detection. The results are then written to QNX Posix Publish Subscribe (QPP).
+2. **hailo-joint-publisher (C++):** Ros2 Service which reads pose landmark information for QPP and publishes joint angles for each joint on your body.
+3. **Mode publisher (C++)**: Ros2 Node which listens for /mode and writes it to QPP to enabled and disable the ML.
 
 ***
 
@@ -69,6 +90,9 @@ PCA9685 I²C servo driver at 50Hz with exponential smoothing.
 * **Individual Servo Tuning:** All movement speeds, safe limits, and automated poses are easily configurable in the Python script.
 * **Direct Joystick Mode:** Each joystick axis directly controls the speed of a corresponding servo joint.
 * **Inverse Kinematics Mode:** Joystick controls the end effector position in Cartesian space (X, Y, Z). The IK solver computes the required joint angles automatically.
+* **Pose detection mode:** Use the joints on your body to control the Baby Robot Arm.
+* **Inverse Kinematics with Hand Land Marking mode:** Use the location of your hand and gestures to control the baby robot arm
+
 
 ## Hardware Setup
 
@@ -157,6 +181,17 @@ sudo ./target_scripts/start_robot.sh
 
 The script will launch `joy_teleop_node`, `ik_solver` and the `arm_controller_node.py` nodes in the background. You can now control the arm with the joystick. To stop both nodes, press `Ctrl+C` in the terminal where you ran the script.
 
+### Running MediaPipe Demo
+```bash
+# Make the target_script executable
+chmod +x ./target_scripts/start_robot.sh
+# Execute the script with root privileges to grant access to the I²C and HIDDI hardware.
+sudo ./target_scripts/start_robot.sh --hand --camera <3 for RPI 5 for USB on RPI5>
+```
+
+### Running Hailo Pose Detection Demo
+The Hailo demo is currently not supported until the hailo APK is created and shipped on the QNX QSTI. The source code has been provided as an example until such time it can be built and run.
+
 ***
 
 ## Configuration & Tuning
@@ -235,6 +270,26 @@ Global Controls use a modifier in order to make it harder to accidentally press.
 * `Stick Buttons`    -> Gripper     (servo 5) Note same as Shoulder Buttons
 * `Y`                -> Center all servos
 
+### Pose Detection controls
+
+* Put both of you hands above your head to start the demo
+* Place both your hands on your heads to stop the demo
+
+![Picture of the Robotic Arm Hailo UI controls](./docs/QNX-Robot-Arm-Hailo-Controls.png)
+* 0 - Tilting shoulder moves the base either left or right going the direction facing the robot
+* 1 - Moving up or down moves the “Shoulder”
+* 2- Curling arm moves “Arm” Up and down
+* 3 - Moves “Hand” up and down with straight out being the center point
+* 4 - Not used. hand tilt didn’t prove to be useful so it was ignored
+* 5 - Curling arm move than 45 degrees will cause the end effector to close.
+
+### Hand Landmark Mode
+* `Y`                -> Center all servos
+* Make the Peace sign ✌️ to start the demo. Make a thumbs up to exit 👍
+* Move Hand left, right, and up, and down to move the robot on a 2-dimensions plane
+* Move your hand towards and away from the camera to move the arm forward and back
+* Close your fist to close the robot arm
+* To tilt the arm make an OK sign 👌, and tilt your hand forward and back. stop making this pose to lock it in that position
 ## References
 
 1.  **QNX Ports - Official Build Files Repository**: This is the official GitHub repository where QNX provides ports for open-source projects, including ROS2.
