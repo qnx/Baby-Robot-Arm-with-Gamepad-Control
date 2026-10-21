@@ -124,6 +124,7 @@ Ensure the servo plugs are oriented correctly. The signal wire (yellow) should b
 * **Dependencies:** The ROS2 installation must include `rclpy` and `rclcpp`.
 * **Package Installation:** requires `packages` to run nodes; `pip3 install packaging`.
 * **APK Dependencies:** Building requires the following APKs; `sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev`
+* **Extra APK Dependencies:** Building mediapipe and pose detection requires the extra following APKs; `sudo apk add gtk4-dev libyuv-dev cjson-dev`
 ***
 ## How to Build
 
@@ -134,6 +135,8 @@ From the root of the project directory, make the script executable and run it:
 ```bash
 chmod +x build.sh
 ./build.sh
+
+# To see other build options see `./build.sh --help`
 ```
 
 The script will automatically locate your ROS2 installation, then build the projects packages. The compiled output will be placed in the `install/` directory.
