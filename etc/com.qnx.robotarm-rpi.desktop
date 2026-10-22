@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Robot Arm RPI Cam
+Comment=Baby Robot Arm Pose and Hand Detection Controls
+Exec=/home/qnxuser/Baby-Robot-Arm-with-Gamepad-controls/target_scripts/start_robot.sh --camera 3 --hand --mode ik_joint
+Icon=/home/qnxuser/Baby-Robot-Arm-with-Gamepad-controls/etc/robot_arm.png
+Terminal=true
+Type=Application
+StartupNotify=true
+Categories=Graphics;Science;

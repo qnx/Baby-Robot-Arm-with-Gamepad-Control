@@ -1,4 +1,6 @@
 build/
 install/
 log/
+mediapipe/
 transfer.sh
+vit_pose_small.hef
