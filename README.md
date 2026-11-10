@@ -6,6 +6,12 @@ This repository provides a complete ROS2 project for controlling a 5-DOF robotic
 
 The project uses the [Arduino-based Robot Arm Model](https://cults3d.com/en/3d-model/various/arduino-based-robot-arm-howtomechatronics) from [How To Mechatronics](https://howtomechatronics.com/) -- check out their website and other models!
 
+> **Important:**  
+> This project assumes that you have the QSTI installed and configured on a RPI4 or RPI5. For instructions on how to install the QSTI see https://www.youtube.com/watch?v=zrk8L-q_fCU
+> For generic QSTI documentation see: https://www.qnx.com/developers/docs/qnxeverywhere/com.qnx.doc.target_images/topic/qsti/intro.html
+> If you already have an image goto [how-to-build](#how-to-build) to get started.
+
+
 > **Important:**
 > The `joy_teleop_hiddi` node requires access to the low-level HIDDI service, and the `arm_controller` node requires access to the I²C bus. The launch script should be run with root privileges.
 
@@ -157,8 +163,15 @@ The project is built using `colcon` on a self hosted QNX target, the standard RO
 **Run the build script:**
 From the root of the project directory, make the script executable and run it:
 ```bash
-chmod +x build.sh
+git clone https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control.git
+cd Baby-Robot-Arm-with-Gamepad-Control
+sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev gtk4-dev libyuv-dev cjson-dev # Adds all dependencies
+
+# To build just gamepad controls (<5 minute build)
 ./build.sh
+
+# To build mediapipe hand landmarking demo (60+ minute build)
+./build.sh --hand
 
 # To see other build options see `./build.sh --help`
 ```
@@ -173,6 +186,9 @@ The script will automatically locate your ROS2 installation, then build the proj
 A launch script, `start_robot.sh`, is provided in the `target_scripts` directory to set up the environment and run both nodes simultaneously on the QNX target.
 
 ```bash
+# Go to the project directory if not already there
+cd Baby-Robot-Arm-with-Gamepad-Control
+
 # Make the target_script executable
 chmod +x ./target_scripts/start_robot.sh
 # Execute the script with root privileges to grant access to the I²C and HIDDI hardware.
@@ -182,11 +198,15 @@ sudo ./target_scripts/start_robot.sh
 The script will launch `joy_teleop_node`, `ik_solver` and the `arm_controller_node.py` nodes in the background. You can now control the arm with the joystick. To stop both nodes, press `Ctrl+C` in the terminal where you ran the script.
 
 ### Running MediaPipe Demo
+> This assume ./build.sh --hand has already  been done
 ```bash
+# Go to the project directory if not already there
+cd Baby-Robot-Arm-with-Gamepad-Control
+
 # Make the target_script executable
 chmod +x ./target_scripts/start_robot.sh
 # Execute the script with root privileges to grant access to the I²C and HIDDI hardware.
-sudo ./target_scripts/start_robot.sh --hand --camera <3 for RPI 5 for USB on RPI5>
+sudo ./target_scripts/start_robot.sh --hand --camera 5 # Use 3 for RPI camera module
 ```
 
 ### Running Hailo Pose Detection Demo
