@@ -18,6 +18,82 @@
 set -e
 trap 'last_command=$current_command; current_command=$BASH_COMMAND' DEBUG
 
+ROS2_PKGS="arm_controller ik_solver joy_teleop_hiddi"
+BUILD_HAND=false
+BUILD_POSE=false
+BUILD_UI=false
+
+# Default to just building base BRA code if no arguments provided
+if [ $# -eq 0 ]; then
+    echo "No flags specified, building only ROS nodes."
+fi
+
+
+for arg in "$@"; do
+    case "$arg" in
+        --hand)
+            BUILD_HAND=true
+            BUILD_UI=true
+            ;;
+        --pose)
+            BUILD_POSE=true
+            BUILD_UI=true
+            ;;
+        --help)
+            echo "Usage: $0 [--hand] [--pose]"
+            echo "  --hand: Build the MediaPipe physical AI demo"
+            echo "  --pose: Build the pose estimation demo (not yet implemented)"
+            exit 0
+            ;;
+        *)
+            echo "Unknown flag: $arg"
+            echo "Usage: $0 [--hand] [--pose]"
+            exit 1
+            ;;
+    esac
+done
+
+if $BUILD_HAND; then
+    ROS2_PKGS="${ROS2_PKGS} mode_publisher landmark_publisher"
+    if [ -d mediapipe ]; then
+        echo "mediapipe already present, skipping clone"
+    else
+        echo "=== [--hand] Cloning mediapipe ==="
+        git clone https://github.com/qnx-ports/mediapipe.git --depth 1 --branch qnx-v0.10.26 mediapipe
+
+        ln -s ../../handlandmark_task mediapipe/mediapipe/handlandmark_task
+
+        # Build script for hand landmarking
+        ln -s ../handlandmark_task/build_handlandmarker.sh mediapipe/build_handlandmarker.sh
+    fi
+fi
+
+if $BUILD_POSE; then
+    ROS2_PKGS="${ROS2_PKGS} mode_publisher hailo-joint-publisher"
+    echo "--pose is not yet supported. Coming soon :)"
+    # This is disabled as we aren't able to build until the hailort apk is created.
+
+    exit 1
+
+    MODEL=vit_pose_small.hef
+    if ! [ -f ${MODEL} ];then
+        curl -O "https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/ModelZoo/Compiled/v2.11.0/hailo8l/${MODEL}"
+    fi
+
+    pushd hailo-joint-controller
+    mkdir -p build && cd build
+    cmake ..
+    make -j4
+    popd
+fi
+
+# build UI
+if $BUILD_UI; then
+    pushd physical-ai-ui
+    make
+    popd
+fi
+
 # --- ROS2 Installation Discovery ---
 if [ -f "/opt/ros/jazzy/local_setup.bash" ]; then
     ROS2_HOST_INSTALLATION_PATH=/opt/ros/jazzy
@@ -35,7 +111,7 @@ printenv | grep "ROS"
 echo "-------------------------------"
 
 # --- Build Execution ---
-colcon build --merge-install --cmake-force-configure
+colcon build --merge-install --cmake-force-configure --base-paths src --packages-select ${ROS2_PKGS}
 
 rc=$?
 if [ $rc -eq 0 ]; then
@@ -43,6 +119,22 @@ if [ $rc -eq 0 ]; then
 else
     echo "Error: $rc"
     exit $rc
+fi
+
+# build mediapipe
+if $BUILD_HAND; then
+    echo "=== [--hand] Building the hand landmark publisher ==="
+
+    pushd mediapipe
+    ./build_handlandmarker.sh
+    popd
+
+    HAND_BIN=mediapipe/bazel-bin/mediapipe/handlandmark_task/handlandmark_task
+    if [ ! -x "$HAND_BIN" ]; then
+        echo "Error: build finished but $HAND_BIN is missing." >&2
+        exit 1
+    fi
+    echo "[--hand] Built $HAND_BIN"
 fi
 
 echo " "

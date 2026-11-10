@@ -1,0 +1,29 @@
+physical-ai-ui
+
+Physical AI camera, hand-tracking, and robot-control UI.
+
+Options:
+  --show-video-flip       Show the Flip Video control
+  --camera-access=auto    Prefer read/write camera access, falling back to read-only
+  --camera-access=ro      Force read-only camera access
+  --camera-unit=<n>       Use Sensor Framework camera unit n; if omitted, use the first camera found
+  -h, --help              Show command-line help
+
+Hotkeys:
+  h     Show or hide hotkey help
+  q     Show or hide the GitHub QR code
+  c     Show or hide Control Studio
+  d     Toggle debug information
+  e/k   Enable or disable robot control
+  1-4   Move debug information
+  p     Show or hide joint/IK popups
+  r     Toggle ROI visibility
+  s     Toggle skeleton visibility
+  j     Toggle joint visibility
+  l     Toggle low-confidence filtering
+  [/]   Decrease/increase confidence threshold
+  f     Toggle fullscreen
+  ESC   Quit
+
+Example:
+  ./physical-ai-ui --camera-unit=3

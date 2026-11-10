@@ -1,0 +1,287 @@
+/*
+ * Copyright (c) 2026, BlackBerry Limited. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.video-mirrored {
+    transform: scaleX(-1);
+}
+
+* {
+    font-family: Sans;
+    font-variant: normal;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.app-shell {
+    background-color: #04080f;
+    background-image: radial-gradient(circle at top left, rgba(31,70,102,0.55), rgba(7,12,20,1.0) 56%), linear-gradient(180deg, #09111b, #04080f);
+    padding: 20px;
+}
+
+.app-topbar {
+    background-color: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 26px;
+    padding: 16px 24px;
+}
+
+.brand-logo {
+    min-width: 0;
+    min-height: 0;
+}
+
+.app-title {
+    color: #f7fbff;
+    font-size: 30px;
+    font-weight: 800;
+}
+
+.app-subtitle {
+    color: rgba(218,231,243,0.76);
+    font-size: 14px;
+}
+
+.header-qr-image {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 4px;
+}
+
+.camera-card {
+    background-color: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 30px;
+    padding: 18px;
+}
+
+.camera-card-compact {
+    padding: 6px 18px 18px 18px;
+}
+
+.camera-header {
+    padding: 0 4px 10px 4px;
+}
+
+.camera-header-compact {
+    padding: 0 0 2px 0;
+}
+
+.camera-brand {
+    min-width: 52px;
+    padding: 2px 0 2px 6px;
+}
+
+.camera-brand-logo {
+    min-width: 52px;
+    min-height: 21px;
+}
+
+.camera-title {
+    color: #f4fbff;
+    font-size: 21px;
+    font-weight: 800;
+}
+
+.camera-subtitle {
+    color: rgba(211,226,238,0.72);
+    font-size: 13px;
+}
+
+.hotkeys-popup {
+    background-color: rgba(5,13,21,0.96);
+    background-image: linear-gradient(180deg, rgba(12,30,48,0.96), rgba(5,13,21,0.98));
+    border: 1px solid rgba(116,219,255,0.24);
+    border-radius: 22px;
+}
+
+.hotkeys-popup-box {
+    min-width: 280px;
+}
+
+.hotkeys-popup-title {
+    color: #f7fbff;
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+
+.hotkeys-popup-row {
+    color: rgba(228,240,248,0.92);
+    font-size: 14px;
+}
+
+.qr-popup {
+    background-color: rgba(5,13,21,0.97);
+    background-image: linear-gradient(180deg, rgba(13,34,52,0.98), rgba(5,13,21,0.99));
+    border: 1px solid rgba(116,219,255,0.28);
+    border-radius: 24px;
+}
+
+.qr-popup-box {
+    min-width: 360px;
+}
+
+.qr-popup-title {
+    color: #f7fbff;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.qr-popup-image {
+    background-color: #ffffff;
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.robot-mode-popup {
+    background-color: rgba(255,255,255,0.98);
+    border: 1px solid rgba(18,32,46,0.18);
+    border-radius: 24px;
+}
+
+.robot-mode-popup-box {
+    min-width: 0;
+    min-height: 0;
+}
+
+.robot-mode-popup-stack {
+    background-color: #ffffff;
+}
+
+.robot-mode-popup-image {
+    background-color: #ffffff;
+    min-width: 0;
+    min-height: 0;
+}
+
+.camera-frame {
+    background-color: rgba(2,7,12,0.94);
+    border: 1px solid rgba(116,219,255,0.18);
+    border-radius: 22px;
+}
+
+.controls-scroller {
+    background-color: transparent;
+    border: none;
+}
+
+.controls-scroller > viewport {
+    background-color: transparent;
+}
+
+.control-panel {
+    background-color: rgba(8,18,30,0.96);
+    background-image: linear-gradient(180deg, rgba(8,18,30,0.96), rgba(14,28,43,0.92));
+    border: 1px solid rgba(120,202,255,0.20);
+    border-radius: 28px;
+    padding: 24px;
+}
+
+.hero-title {
+    color: #f4fbff;
+    font-size: 28px;
+    font-weight: 800;
+}
+
+.panel-card {
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 22px;
+    padding: 18px;
+}
+
+.panel-section-title {
+    color: #f7fbff;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.toggle-row {
+    padding: 4px 0;
+}
+
+.toggle-title {
+    color: #f6fbff;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.toggle-subtitle {
+    color: rgba(215,229,240,0.70);
+    font-size: 13px;
+}
+
+checkbutton.ai-studio-choice,
+checkbutton.ai-studio-choice label {
+    color: #f6fbff;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.confidence-range-label {
+    color: rgba(215,229,240,0.70);
+    font-size: 12px;
+    padding-top: 2px;
+}
+
+.status-chip {
+    color: #072034;
+    background-color: #74dbff;
+    background-image: linear-gradient(90deg, #74dbff, #9cf0d2);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.status-hotkey-chip {
+    color: #ecf9ff;
+    background-color: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.status-value {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+label,
+scale,
+scale value,
+switch {
+    font-family: Sans;
+}
+
+scale,
+scale value {
+    color: #f6fbff;
+    font-size: 20px;
+}
+
+switch slider {
+    background-color: rgba(255,255,255,0.95);
+}
+
+switch:checked {
+    background-color: #00b7ff;
+    background-image: linear-gradient(90deg, #00b7ff, #2fe0b5);
+}

@@ -1,0 +1,233 @@
+{
+    "physicalai": {
+        "type": "branch",
+        "children": {
+            "info": {
+                "type": "attribute",
+                "datatype": "string",
+                "description": "Global Physical AI inference metrics JSON, including infer_sec and conf."
+            },
+            "hands": {
+                "type":"branch",
+                "children": {
+                    "roi": {
+                        "datatype": "int8[]",
+                        "default": [0,0,100,100],
+                        "description": "Region of Interest. Subset of frame which will be sent to the ML",
+                        "type": "actuator"
+                    },
+                    "enabled": {
+                        "datatype": "boolean",
+                        "default": true,
+                        "type": "actuator"
+                    },
+                    "selected_pose": {
+                        "datatype": "string",
+                        "default": "",
+                        "type": "attribute"
+                    },
+                    "selected_pose_state": {
+                        "datatype": "string",
+                        "default": "noone",
+                        "allowed": ["noone", "selecting", "selected"],
+                        "type": "attribute"
+                    },
+                    "info": {
+                        "datatype": "string",
+                        "type": "attribute"
+                    },
+                    "detections" : {
+                        "type":"branch",
+                        "children": {
+                            "left_hand1": {
+                                "datatype": "string",
+                                "type": "attribute",
+                                "default": "{}"
+                            },
+                            "right_hand1": {
+                                "datatype": "string",
+                                "type": "attribute",
+                                "default": "{}"
+                            }
+                        }
+                    },
+                    "controls" : {
+                        "type":"branch",
+                        "children": {
+                            "wrists": {
+                                "datatype": "boolean",
+                                "default": false,
+                                "type": "actuator"
+                            }
+                        }
+                    }
+                }
+            },
+            "pose": {
+                "type":"branch",
+                "children": {
+                    "roi": {
+                        "datatype": "int8[]",
+                        "default": [0,0,100,100],
+                        "description": "Region of Interest. Subset of frame which will be sent to the ML",
+                        "type": "actuator"
+                    },
+                    "enabled": {
+                        "datatype": "boolean",
+                        "default": true,
+                        "type": "actuator"
+                    },
+                    "selected_pose": {
+                        "datatype": "string",
+                        "default": "",
+                        "type": "attribute"
+                    },
+                    "selected_pose_state": {
+                        "datatype": "string",
+                        "default": "noone",
+                        "allowed": ["noone", "selecting", "selected"],
+                        "type": "attribute"
+                    },
+                    "info": {
+                        "datatype": "string",
+                        "type": "attribute"
+                    },
+                    "detections" : {
+                        "type":"branch",
+                        "children": {
+                            "pose1": {
+                                "datatype": "string",
+                                "type": "attribute"
+                            }
+                        }
+                    }
+
+                }
+            },
+            "face": {
+                "type":"branch",
+                "children": {
+                    "roi": {
+                        "datatype": "int8[]",
+                        "default": [0,0,100,100],
+                        "description": "Region of Interest. Subset of frame which will be sent to the ML",
+                        "type": "actuator"
+                    },
+                    "enabled": {
+                        "datatype": "boolean",
+                        "default": true,
+                        "type": "actuator"
+                    },
+                    "selected_pose": {
+                        "datatype": "string",
+                        "default": "",
+                        "type": "attribute"
+                    },
+                    "selected_pose_state": {
+                        "datatype": "string",
+                        "default": "noone",
+                        "allowed": ["noone", "selecting", "selected"],
+                        "type": "attribute"
+                    },
+                    "info": {
+                        "datatype": "string",
+                        "type": "attribute"
+                    },
+                    "detections" : {
+                        "type":"branch",
+                        "children": {
+                            "face1": {
+                                "datatype": "string",
+                                "type": "attribute"
+                            }
+                        }
+                    }
+
+                }
+            },
+            "objects": {
+                "type": "branch",
+                "description": "Object-detection overlay data published by the Physical AI demo.",
+                "children": {
+                    "info": {
+                        "type": "attribute",
+                        "datatype": "string",
+                        "description": "Object-detection image dimensions JSON."
+                    },
+                    "detecions": {
+                        "type": "branch",
+                        "children": {
+                            "object1": { "type": "attribute", "datatype": "string" },
+                            "object2": { "type": "attribute", "datatype": "string" },
+                            "object3": { "type": "attribute", "datatype": "string" },
+                            "object4": { "type": "attribute", "datatype": "string" },
+                            "object5": { "type": "attribute", "datatype": "string" },
+                            "object6": { "type": "attribute", "datatype": "string" },
+                            "object7": { "type": "attribute", "datatype": "string" },
+                            "object8": { "type": "attribute", "datatype": "string" },
+                            "object9": { "type": "attribute", "datatype": "string" },
+                            "object10": { "type": "attribute", "datatype": "string" }
+                        }
+                    }
+                }
+            },
+            "inference": {
+                "type": "actuator",
+                "datatype": "string",
+                "default": "mediapipe",
+                "allowed": ["mediapipe", "yolo"],
+                "description": "Requested inference engine selected in the AI Studio panel."
+            },
+            "model": {
+                "type": "actuator",
+                "datatype": "string",
+                "default": "pose",
+                "allowed": [
+                    "pose",
+                    "holistic",
+                    "object_detection",
+                    "pose,holistic",
+                    "pose,object_detection",
+                    "holistic,object_detection",
+                    "pose,holistic,object_detection"
+                ],
+                "description": "Requested AI model selection encoded as one or more comma-separated model identifiers.",
+                "comment": "Use lowercase model tokens with no spaces. Stable ordering is pose,holistic,object_detection."
+            },
+            "compute": {
+                "type": "actuator",
+                "datatype": "string",
+                "default": "cpu",
+                "allowed": ["cpu", "gpu"],
+                "description": "Requested compute target for AI execution."
+            },
+            "input": {
+                "type": "actuator",
+                "datatype": "string",
+                "default": "live_camera",
+                "allowed": ["live_camera", "video_file"],
+                "description": "Requested AI input source."
+            },
+            "bra": {
+                "type":"branch",
+                "children": {
+                    "mode": {
+                        "datatype": "string",
+                        "default": "unknown",
+                        "type": "attribute"
+                    },
+                    "screensaver": {
+                        "datatype": "string",
+                        "default": "",
+                        "type": "attribute"
+                    },
+                    "enabled": {
+                        "datatype": "boolean",
+                        "default": true,
+                        "type": "actuator"
+                    }
+                }
+            }
+        }
+    }
+}
