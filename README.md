@@ -6,8 +6,8 @@ This repository provides a complete ROS2 project for controlling a 5-DOF robotic
 
 The project uses the [Arduino-based Robot Arm Model](https://cults3d.com/en/3d-model/various/arduino-based-robot-arm-howtomechatronics) from [How To Mechatronics](https://howtomechatronics.com/) -- check out their website and other models!
 
-> **Important:**  
-> This project assumes that you have the QSTI installed and configured on a RPI4 or RPI5. For instructions on how to install the QSTI see https://www.youtube.com/watch?v=zrk8L-q_fCU
+> **Important:**
+> This project assumes that you have the **latest QSTI** installed and configured on a RPI4 or RPI5. For instructions on how to install the QSTI see https://www.youtube.com/watch?v=zrk8L-q_fCU
 > For generic QSTI documentation see: https://www.qnx.com/developers/docs/qnxeverywhere/com.qnx.doc.target_images/topic/qsti/intro.html
 > If you already have an image goto [how-to-build](#how-to-build) to get started.
 
@@ -34,6 +34,8 @@ The project uses the [Arduino-based Robot Arm Model](https://cults3d.com/en/3d-m
   - [Software Requirements](#software-requirements)
   - [How to Build](#how-to-build)
   - [How to Run the Demo](#how-to-run-the-demo)
+    - [Joystick setup](#joystick-setup)
+    - [Starting the demo script](#starting-the-demo-script)
     - [Running MediaPipe Demo](#running-mediapipe-demo)
     - [Running Hailo Pose Detection Demo](#running-hailo-pose-detection-demo)
   - [Configuration \& Tuning](#configuration--tuning)
@@ -152,9 +154,8 @@ Ensure the servo plugs are oriented correctly. The signal wire (yellow) should b
 * **Operating System:** QNX SDP 8.0 with APK support.
 * **ROS2 Jazzy:** A full ROS2 Jazzy installation for QNX `aarch64le` is required.
 * **Dependencies:** The ROS2 installation must include `rclpy` and `rclcpp`.
-* **Package Installation:** requires `packages` to run nodes; `pip3 install packaging`.
 * **APK Dependencies:** Building requires the following APKs; `sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev`
-* **Extra APK Dependencies:** Building mediapipe and pose detection requires the extra following APKs; `sudo apk add gtk4-dev libyuv-dev cjson-dev`
+* **Extra APK Dependencies:** Building mediapipe and pose detection requires the extra following APKs; `sudo apk add gtk4-dev libyuv-dev cjson-dev qnx-sf-base-dev qnx-posix-publish-subscribe qnx-posix-publish-subscribe-utils nlohmman-json bazel6 opencv-dev`
 ***
 ## How to Build
 
@@ -165,12 +166,19 @@ From the root of the project directory, make the script executable and run it:
 ```bash
 git clone https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control.git
 cd Baby-Robot-Arm-with-Gamepad-Control
-sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev gtk4-dev libyuv-dev cjson-dev # Adds all dependencies
+
+# Adds all dependencies for both projects
+sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev gtk4-dev libyuv-dev cjson-dev qnx-sf-base-dev qnx-posix-publish-subscribe qnx-posix-publish-subscribe-utils nlohmman-json bazel6 opencv-dev
 
 # To build just gamepad controls (<5 minute build)
 ./build.sh
 
 # To build mediapipe hand landmarking demo (60+ minute build)
+
+### WARNING before building the mediapipe demo you must run the following commands
+sudo mkdir -p /usr/lib/clang
+sudo ln -s /usr/lib/llvm22/lib/clang/22 /usr/lib/clang/22
+
 ./build.sh --hand
 
 # To see other build options see `./build.sh --help`
@@ -183,6 +191,10 @@ The script will automatically locate your ROS2 installation, then build the proj
 ## How to Run the Demo
 > The first time the demo is run you are required to manually calibration see Manual Calibration section for more information.
 
+### Joystick setup
+Before starting the demo make sure the joystick is connected and in the D-Input mode. D-Input mode can be changed by flipping the switch on the back or top of the controller to D instead of X.
+
+### Starting the demo script
 A launch script, `start_robot.sh`, is provided in the `target_scripts` directory to set up the environment and run both nodes simultaneously on the QNX target.
 
 ```bash
@@ -198,7 +210,7 @@ sudo ./target_scripts/start_robot.sh
 The script will launch `joy_teleop_node`, `ik_solver` and the `arm_controller_node.py` nodes in the background. You can now control the arm with the joystick. To stop both nodes, press `Ctrl+C` in the terminal where you ran the script.
 
 ### Running MediaPipe Demo
-> This assume ./build.sh --hand has already  been done
+> This assume ./build.sh --hand has already been done
 ```bash
 # Go to the project directory if not already there
 cd Baby-Robot-Arm-with-Gamepad-Control

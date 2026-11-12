@@ -121,10 +121,12 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-# On exit we need to manually kill qpp and playback-connector
-# unlike ros2 node they are not catching the ctrl+c of the parent
+# On exit cleanup all left over processes.
 cleanup() {
-    slay qpp playback-connector handlandmark_task physical-ai-ui
+    echo "Exiting"
+    slay qpp playback-connector handlandmark_task physical-ai-ui 2> /dev/null
+    # Kills left over ros commands
+    kill -INT -- -$$  2> /dev/null
 }
 
 start_ros() {
@@ -180,11 +182,11 @@ start_ros() {
         -p servo_min_limits:="${SERVO_MIN_LIMITS}" \
         -p servo_max_limits:="${SERVO_MAX_LIMITS}" &
 
-    if ${RUN_HAND}; then
-        ros2 run mode_publisher mode_publisher_node \
-            --ros-args \
-            -p qpp_path:=/dev/qpp/physicalai/bra/ &
+    ros2 run mode_publisher mode_publisher_node \
+        --ros-args \
+        -p qpp_path:=/dev/qpp/physicalai/bra/ &
 
+    if ${RUN_HAND}; then
         ros2 run landmark_publisher landmark_publisher \
             --ros-args \
             -p cart_min_limits:="${CART_MIN_LIMITS}" \
@@ -192,26 +194,23 @@ start_ros() {
     fi
 
     if ${RUN_POSE}; then
-        ros2 run mode_publisher mode_publisher_node \
-            --ros-args \
-            -p qpp_path:=/dev/qpp/physicalai/bra/ &
-
         ros2 run hailo_joint_publisher hailo_joint_publisher &
     fi
 }
 
 trap cleanup EXIT
 
-if ${RUN_HAND}; then
-    echo "Starting QPP"
-    if ! [ -d /dev/qpp ]; then
-        qpp -c "${SCRIPT_DIR}/../etc/physical-ai_v1.json" &
-        waitfor /dev/qpp
+echo "Starting QPP"
+if ! [ -d /dev/qpp ]; then
+    qpp -c "${SCRIPT_DIR}/../etc/physical-ai_v1.json" &
+    waitfor /dev/qpp
 
-        playback-connector -s /dev/qpp &
-    else
-      echo "Warning: Another QPP instance running skipping..."
-    fi
+    playback-connector -s /dev/qpp &
+else
+    echo "Warning: Another QPP instance running skipping..."
+fi
+
+if ${RUN_HAND}; then
 
     # Start handlandmark task
     HAND_BIN="${SCRIPT_DIR}/../mediapipe/bazel-bin/mediapipe/handlandmark_task/handlandmark_task"
@@ -242,10 +241,14 @@ if ${RUN_POSE}; then
     POSE_MODEL=${SCRIPT_DIR}/../vit_pose_small.hef
     "${SCRIPT_DIR}/../hailo-joint-controller/hailo-joint-controller" ${POSE_MODEL} --cam-id="${CAMERA_UNIT}" &
 fi
-"${SCRIPT_DIR}/../physical-ai-ui/physical-ai-ui" --camera-unit="${CAMERA_UNIT}" --show-video-flip &
 
-# --- Wait for all background nodes to exit ---
-echo "All nodes started. Press Ctrl+C in this terminal to stop both."
-wait
+# Only start the UI if it was built
+if [ -e "${SCRIPT_DIR}/../physical-ai-ui/physical-ai-ui" ]; then
+    "${SCRIPT_DIR}/../physical-ai-ui/physical-ai-ui" --camera-unit="${CAMERA_UNIT}" --show-video-flip
+else
+    # --- Wait for all background nodes to exit ---
+    echo "All nodes started. Press Ctrl+C in this terminal to stop both."
+    wait
+fi
 
 echo "All nodes have been shut down. Script finished."
