@@ -18,7 +18,7 @@
 set -e
 trap 'last_command=$current_command; current_command=$BASH_COMMAND' DEBUG
 
-ROS2_PKGS="arm_controller ik_solver joy_teleop_hiddi"
+ROS2_PKGS="arm_controller ik_solver joy_teleop_hiddi mode_publisher"
 BUILD_HAND=false
 BUILD_POSE=false
 BUILD_UI=false
@@ -54,7 +54,7 @@ for arg in "$@"; do
 done
 
 if $BUILD_HAND; then
-    ROS2_PKGS="${ROS2_PKGS} mode_publisher landmark_publisher"
+    ROS2_PKGS="${ROS2_PKGS} landmark_publisher"
     if [ -d mediapipe ]; then
         echo "mediapipe already present, skipping clone"
     else
@@ -69,7 +69,7 @@ if $BUILD_HAND; then
 fi
 
 if $BUILD_POSE; then
-    ROS2_PKGS="${ROS2_PKGS} mode_publisher hailo-joint-publisher"
+    ROS2_PKGS="${ROS2_PKGS} hailo-joint-publisher"
     echo "--pose is not yet supported. Coming soon :)"
     # This is disabled as we aren't able to build until the hailort apk is created.
 
