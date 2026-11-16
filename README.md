@@ -155,7 +155,7 @@ Ensure the servo plugs are oriented correctly. The signal wire (yellow) should b
 * **ROS2 Jazzy:** A full ROS2 Jazzy installation for QNX `aarch64le` is required.
 * **Dependencies:** The ROS2 installation must include `rclpy` and `rclcpp`.
 * **APK Dependencies:** Building requires the following APKs; `sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev`
-* **Extra APK Dependencies:** Building mediapipe and pose detection requires the extra following APKs; `sudo apk add gtk4-dev libyuv-dev cjson-dev qnx-sf-base-dev qnx-posix-publish-subscribe qnx-posix-publish-subscribe-utils nlohmman-json bazel6 opencv-dev`
+* **Extra APK Dependencies:** Building mediapipe and pose detection requires the extra following APKs; `sudo apk add gtk4-dev libyuv-dev cjson-dev qnx-sf-base-dev qnx-posix-publish-subscribe qnx-posix-publish-subscribe-utils nlohmann-json bazel6 opencv-dev`
 ***
 ## How to Build
 
@@ -168,7 +168,7 @@ git clone https://github.com/qnx/Baby-Robot-Arm-with-Gamepad-Control.git
 cd Baby-Robot-Arm-with-Gamepad-Control
 
 # Adds all dependencies for both projects
-sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev gtk4-dev libyuv-dev cjson-dev qnx-sf-base-dev qnx-posix-publish-subscribe qnx-posix-publish-subscribe-utils nlohmman-json bazel6 opencv-dev
+sudo apk add ros2-jazzy tinyxml2-dev eigen-dev qnx-screen-dev gtk4-dev libyuv-dev cjson-dev qnx-sf-base-dev qnx-posix-publish-subscribe qnx-posix-publish-subscribe-utils nlohmann-json bazel6 opencv-dev
 
 # To build just gamepad controls (<5 minute build)
 ./build.sh
@@ -293,6 +293,7 @@ Global Controls use a modifier in order to make it harder to accidentally press.
 * `Shoulder Buttons` -> Gripper     (servo 5)
 * `Stick Buttons`    -> Gripper     (servo 5) Note same as Shoulder Buttons
 * `Y`                -> Center all servos
+<img src="./physical-ai-ui/data/robot_mode_joystick.png" alt="Joystick robot controls" title="Joystick controls" width="517" height="436" style="background-color:white" />
 
 ### Inverse Kinematic controls
 * `Left Stick X`     -> Cartesian X
